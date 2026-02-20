@@ -742,7 +742,6 @@ get '/api/groups' do
     {
       id: club.id,
       name: club.name,
-      slug: club.name,
       full_name: club.full_name,
       website: club.about_url,
       description: club.description,
