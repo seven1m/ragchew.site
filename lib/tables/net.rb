@@ -13,6 +13,8 @@ module Tables
     has_many :message_reactions, dependent: :delete_all
     has_many :blocked_stations, as: :blocker, dependent: :delete_all
 
+    after_create :send_notifications
+
     def self.all_by_name
       all.each_with_object({}) do |net, hash|
         hash[net.name] = net
@@ -24,6 +26,17 @@ module Tables
         update_interval / 1000
       else
         20
+      end
+    end
+
+    private
+
+    def send_notifications
+      Tables::FavoriteNet.where(net_name: name).includes(user: :devices).find_each do |fave|
+        fave.user.devices.each do |device|
+          suffix = name.match?(/\bnet\z/i) ? " is starting!" : " net is starting!"
+          device.send_push_notification(body: "#{name}#{suffix}", data: { netName: name })
+        end
       end
     end
   end

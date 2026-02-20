@@ -1625,6 +1625,17 @@ delete '/admin/suggested-clubs/:id' do
   redirect '/admin/suggested-clubs'
 end
 
+post '/api/user/add_device' do
+  content_type 'application/json'
+
+  require_user!
+
+  data = JSON.parse(request.body.read)
+  @user.devices.find_or_create_by!(data.slice('token', 'platform', 'data'))
+
+  { ok: true }.to_json
+end
+
 post '/api/monitor/:net_id' do
   content_type 'application/json'
 

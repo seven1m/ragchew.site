@@ -21,6 +21,7 @@ module Tables
     has_many :clubs, through: :club_members
     has_many :blocked_stations, as: :blocker, dependent: :delete_all
     has_many :api_tokens, dependent: :delete_all
+    has_many :devices, dependent: :delete_all
 
     scope :is_monitoring, -> { where.not(monitoring_net_id: nil) }
 
