@@ -306,6 +306,8 @@ class NetInfo
       end
     end
 
+    @record.update_column(:checkin_count, records.size)
+
     stored_currently_operating = records.detect { |r| r.currently_operating? }&.num
     if currently_operating && stored_currently_operating != currently_operating
       old_record = records.detect { |r| r.num == stored_currently_operating }
