@@ -14,6 +14,14 @@ use Rack::Attack
 
 Rack::Attack.cache.store = ActiveSupport::Cache::RedisCacheStore.new(url: ENV.fetch('REDIS_URL', 'redis://localhost:6379/0'))
 
+# Rate limit all logged-out requests by IP (mostly to slow down crawlers)
+Rack::Attack.throttle('req/ip', limit: 60, period: 60) do |req|
+  unless req.path.start_with?('/images/', '/js/') || req.path.end_with?('.css', '.js', '.png', '.ico')
+    rack_session = req.env['rack.session']
+    req.ip unless rack_session && rack_session['user_id']
+  end
+end
+
 # Rate limit login endpoints by IP
 Rack::Attack.throttle('login/ip', limit: 5, period: 15.minutes) do |req|
   req.ip if (req.path == '/login' || req.path == '/api/auth/login') && req.post?
@@ -37,10 +45,19 @@ Rack::Attack.throttle('login/call_sign', limit: 5, period: 15.minutes) do |req|
 end
 
 Rack::Attack.throttled_responder = lambda do |request|
+  match_data = request.env['rack.attack.match_data'] || {}
+  retry_after = (match_data[:period] || 60) - (Time.now.to_i % (match_data[:period] || 60))
+
+  message = 'Too many requests. Please slow down.'
+
+  headers = { 'retry-after' => retry_after.to_s }
+
   if request.env['HTTP_AUTHORIZATION'] || request.env['HTTP_ACCEPT']&.include?('application/json')
-    [429, { 'content-type' => 'application/json' }, [{ error: 'too many login attempts, try again later' }.to_json]]
+    headers['content-type'] = 'application/json'
+    [429, headers, [{ error: message }.to_json]]
   else
-    [429, { 'content-type' => 'text/html' }, ['<html><body><h1>Too many login attempts</h1><p>Please try again later.</p></body></html>']]
+    headers['content-type'] = 'text/html'
+    [429, headers, ["<html><body><h1>#{message}</h1></body></html>"]]
   end
 end
 
