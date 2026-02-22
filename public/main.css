@@ -19,6 +19,7 @@ nav a { white-space: nowrap; }
 
 .site-banner { background-color: #f90; color: #fff; text-align: center; padding: 8px 16px; font-size: 14px; margin: -16px -16px 16px; }
 .site-banner a { color: black; }
+.site-banner a:visited { color: black; }
 
 header { clear: both; margin: 25px 0; }
 header.flex { display: flex; justify-content: space-between; }
