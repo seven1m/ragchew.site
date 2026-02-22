@@ -54,7 +54,8 @@
   <body data-time-format="<%= @user&.time_format %>" data-theme="<%= @theme || 'system' %>">
     <% if @homepage %>
       <div class="site-banner">
-        RagChew.app is now <a href="https://ragchew.site">RagChew.site</a>. Please update your bookmarks.
+        RagChew.app is now <a href="https://ragchew.site">RagChew.site</a>.
+        <span class="no-wrap-on-mobile">Please update your bookmarks.</span>
       </div>
     <% end %>
     <% unless @for_mobile %>
