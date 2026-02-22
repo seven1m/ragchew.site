@@ -1,5 +1,5 @@
 User-agent: *
-Disallow: 
+Disallow: /closed-net/
 
 User-agent: googlebot-image
 Disallow: /
