@@ -4,15 +4,19 @@ require 'sinatra'
 require 'sinatra/reloader' if development?
 require 'rack/attack'
 require 'redis'
+require_relative './lib/abuse_middleware'
 
 require_relative './boot'
 
 disable :protection
 set :host_authorization, { permitted_hosts: [] }
 
-use Rack::Attack
+REDIS = Redis.new(url: "#{ENV.fetch('REDIS_URL')}/1")
 
-Rack::Attack.cache.store = ActiveSupport::Cache::RedisCacheStore.new(url: ENV.fetch('REDIS_URL', 'redis://localhost:6379/0'))
+use Rack::Attack
+use Rack::AbuseMiddleware, redis: REDIS, limit: 30, window: 120, block_time: 3600
+
+Rack::Attack.cache.store = ActiveSupport::Cache::RedisCacheStore.new(redis: REDIS)
 
 # Rate limit all logged-out requests by IP (mostly to slow down crawlers)
 Rack::Attack.throttle('req/ip', limit: 60, period: 60) do |req|
