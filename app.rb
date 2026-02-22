@@ -3,15 +3,12 @@ require 'bundler/setup'
 require 'sinatra'
 require 'sinatra/reloader' if development?
 require 'rack/attack'
-require 'redis'
 require_relative './lib/abuse_middleware'
 
 require_relative './boot'
 
 disable :protection
 set :host_authorization, { permitted_hosts: [] }
-
-REDIS = Redis.new(url: "#{ENV.fetch('REDIS_URL')}/1")
 
 use Rack::Attack
 use Rack::AbuseMiddleware, redis: REDIS, limit: 30, window: 120, block_time: 3600

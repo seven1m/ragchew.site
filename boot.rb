@@ -12,6 +12,7 @@ require 'net/http'
 require 'nokogiri'
 require 'pusher'
 require 'redcarpet'
+require 'redis'
 require 'time'
 require 'uri'
 require 'yaml'
@@ -39,3 +40,5 @@ require_relative './lib/tables'
 require_relative './lib/update_club_list'
 
 CURRENT_GIT_SHA = ENV['GIT_REV'] || `git rev-parse HEAD`.strip
+
+REDIS = Redis.new(url: "#{ENV.fetch('REDIS_URL')}/1")
