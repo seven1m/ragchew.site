@@ -310,6 +310,11 @@ get '/about' do
   erb :about
 end
 
+get '/privacy' do
+  @page_title = 'Privacy Policy'
+  erb :privacy
+end
+
 get '/net/:name' do
   params[:name] = CGI.unescape(params[:name])
   service = NetInfo.new(name: params[:name])
