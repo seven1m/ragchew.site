@@ -732,7 +732,7 @@ get '/api/closed-net/:id' do
   set_closed_net_details
   content_type 'application/json'
   {
-    net: @closed_net,
+    net: @closed_net.as_json(include: :club),
     checkinCount: @checkin_count,
     messageCount: @message_count,
     monitorCount: @monitor_count,
@@ -2078,7 +2078,7 @@ def fix_club_params(params)
 end
 
 def set_closed_net_details
-  @closed_net = Tables::ClosedNet.find(params[:id])
+  @closed_net = Tables::ClosedNet.includes(:club).find(params[:id])
   @name = @closed_net&.name
   @checkin_count = @closed_net.checkin_count
   @message_count = @closed_net.message_count
