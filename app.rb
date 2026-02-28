@@ -16,10 +16,12 @@ use Rack::AbuseMiddleware, redis: REDIS, limit: 30, window: 120, block_time: 360
 Rack::Attack.cache.store = ActiveSupport::Cache::RedisCacheStore.new(redis: REDIS)
 
 # Rate limit all logged-out requests by IP (mostly to slow down crawlers)
+# Note: Rack::Attack runs before Sinatra's session middleware, so we check
+# for the session cookie to determine if a user is likely logged in.
 Rack::Attack.throttle('req/ip', limit: 60, period: 60) do |req|
-  unless req.path.start_with?('/images/', '/js/') || req.path.end_with?('.css', '.js', '.png', '.ico')
-    rack_session = req.env['rack.session']
-    req.ip unless rack_session && rack_session['user_id']
+  unless req.path.start_with?('/images/', '/js/', '/station/') || req.path.end_with?('.css', '.js', '.png', '.ico')
+    cookies = Rack::Utils.parse_cookies(req.env)
+    req.ip unless cookies['rack.session']
   end
 end
 
