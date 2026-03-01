@@ -782,12 +782,15 @@ get '/api/group/:id' do
 
   club = Tables::Club.find(params[:id])
 
-  nets = club.closed_nets
-             .where('started_at > ?', 60.days.ago)
-             .order(:name, :frequency)
-             .select(:id, :name, :frequency, :band, :mode, :started_at)
-             .to_a
-             .uniq { |n| [n.name.downcase, n.frequency] }
+  nets = (
+    club.nets
+        .select(:id, :name, :frequency, :band, :mode, :started_at)
+        .to_a +
+    club.closed_nets
+        .select(:id, :name, :frequency, :band, :mode, :started_at)
+        .to_a
+  ).sort_by { |n| n.name.to_s }
+   .uniq { |n| n.name.to_s.downcase }
 
   {
     club: club.as_json.merge(
