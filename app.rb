@@ -267,6 +267,11 @@ BASE_URL = ENV['BASE_URL'] || 'https://ragchew.site'
 SUPPORT_EMAIL = ENV['SUPPORT_EMAIL'] || 'tim@timmorgan.org'
 ONE_PIXEL_IMAGE = File.read(File.expand_path('./public/images/1x1.png', __dir__))
 
+get '/.well-known/apple-app-site-association' do
+  content_type 'application/json'
+  '{"webcredentials":{"apps":["U244D4WPSF.org.timmorgan.ragchewapp"]}}'
+end
+
 get '/' do
   @homepage = true
   frequency_order_cast = Arel.sql('CAST(frequency AS DOUBLE)')
