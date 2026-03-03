@@ -1057,6 +1057,62 @@ get '/api/favorites' do
   }.to_json
 end
 
+post '/api/feedback' do
+  require_user!
+  content_type 'application/json'
+
+  begin
+    body = JSON.parse(request.body.read)
+  rescue JSON::ParserError
+    status 400
+    return { error: 'invalid JSON' }.to_json
+  end
+
+  type = body['type'].to_s.strip.downcase
+  title = body['title'].to_s.strip
+  description = body['description'].to_s.strip
+
+  unless %w[feature bug].include?(type)
+    status 400
+    return { error: 'type must be feature or bug' }.to_json
+  end
+
+  if title.length < 3 || title.length > 120
+    status 400
+    return { error: 'title must be between 3 and 120 characters' }.to_json
+  end
+
+  if description.length < 10 || description.length > 5000
+    status 400
+    return { error: 'description must be between 10 and 5000 characters' }.to_json
+  end
+
+  begin
+    firestore = firestore_client
+    unless firestore
+      status 503
+      return { error: 'feedback service unavailable' }.to_json
+    end
+
+    now = firestore.field_server_time
+    doc = firestore.col('feedback_items').add(
+      type:,
+      title:,
+      description:,
+      status: 'new',
+      source: 'mobile_app',
+      reporterUserId: @user.id,
+      reporterCallSign: @user.call_sign,
+      appVersion: body['appVersion'].to_s.strip.presence,
+      platform: body['platform'].to_s.strip.presence,
+      createdAt: now,
+      updatedAt: now,
+    )
+
+    { ok: true, id: doc.document_id }.to_json
+  end
+end
+
 post '/preferences' do
   require_user!
 
@@ -2145,4 +2201,12 @@ def set_favorites
       last_closed_at: recent_closed_ats[favorite_net.net_name],
     )
   end
+end
+
+def firestore_client
+  config = JSON.parse(ENV['FIREBASE_CONFIG'])
+  @firestore_client ||= Google::Cloud::Firestore.new(project_id: config.fetch('project_id'), credentials: config)
+rescue => e
+  Honeybadger.notify(e)
+  nil
 end
