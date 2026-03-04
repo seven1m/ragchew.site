@@ -339,6 +339,11 @@ get '/about' do
   erb :about
 end
 
+get '/support' do
+  @page_title = 'Support'
+  erb :support
+end
+
 get '/privacy' do
   @page_title = 'Privacy Policy'
   erb :privacy
@@ -1008,11 +1013,13 @@ post '/api/favorite/:call_sign' do
   rescue Qrz::Error
   end
 
-  @user.favorites.create!(
+  fave = @user.favorites.create!(
     call_sign: station ? station[:call_sign] : params[:call_sign].upcase,
     first_name: station && station[:first_name],
     last_name: station && station[:last_name],
   )
+
+  REDIS.sadd('fav_callsigns', fave.call_sign)
 
   { favorited: true }.to_json
 end
@@ -1021,7 +1028,9 @@ post '/api/unfavorite/:call_sign' do
   content_type 'application/json'
   require_user!
 
-  @user.favorites.where(call_sign: params[:call_sign]).delete_all
+  cs_upper = params[:call_sign].upcase
+  @user.favorites.where(call_sign: cs_upper).delete_all
+  REDIS.srem('fav_callsigns', cs_upper) unless Tables::Favorite.where(call_sign: cs_upper).exists?
 
   { favorited: false }.to_json
 end
