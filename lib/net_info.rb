@@ -270,6 +270,7 @@ class NetInfo
     records = @record.checkins.to_a
 
     changes = 0
+    new_call_signs = []
 
     checkins.each do |checkin|
       is_new_checkin = false
@@ -303,6 +304,29 @@ class NetInfo
         net_station.last_check_in = checkin[:checked_in_at]
         net_station.check_in_count += 1
         net_station.save!
+
+        new_call_signs << checkin[:call_sign]
+      end
+    end
+
+    if new_call_signs.any?
+      call_sign_map = new_call_signs.index_by(&:upcase)
+
+      hits = REDIS.smismember('fav_callsigns', *call_sign_map.keys)
+      favorited = call_sign_map.keys.zip(hits).filter_map { |cs, hit| cs if hit }
+
+      if favorited.any?
+        Tables::Favorite.where(call_sign: favorited)
+                        .includes(user: :devices)
+                        .find_each do |fave|
+          call_sign = call_sign_map[fave.call_sign]
+          fave.user.devices.each do |device|
+            device.send_push_notification(
+              body: "#{call_sign} checked into #{@record.name}",
+              data: { callSign: call_sign, netName: @record.name }
+            )
+          end
+        end
       end
     end
 

@@ -8,6 +8,10 @@ module Tables
 
     EXPO_PUSH_URL = URI('https://exp.host/--/api/v2/push/send')
 
+    def self.deliver(token:, body:, title: nil, data: {})
+      new(token:).send_push_notification(body:, title:, data:)
+    end
+
     def send_push_notification(body:, title: nil, data: {})
       payload = { to: token, body:, title:, data: }.compact
 
