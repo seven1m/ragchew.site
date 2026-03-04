@@ -309,6 +309,13 @@ class NetInfo
       end
     end
 
+    ### Push Notifications for Favorite Station Check-ins ###
+
+    # Ask Redis SMISMEMBER fav_callsigns for all new callsigns at once → get back a boolean array
+    # Filter down to only the ones that are actually favorited by someone
+    # If any → query the DB for Favorite rows matching those callsigns, with users+devices preloaded
+    # For each match, send a push notification to every device that user has registered
+
     if new_call_signs.any?
       call_sign_map = new_call_signs.index_by(&:upcase)
 
@@ -316,6 +323,7 @@ class NetInfo
       favorited = call_sign_map.keys.zip(hits).filter_map { |cs, hit| cs if hit }
 
       if favorited.any?
+        # Query necessary because we need to know which users to send notifications to.
         Tables::Favorite.where(call_sign: favorited)
                         .includes(user: :devices)
                         .find_each do |fave|
