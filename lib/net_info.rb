@@ -12,6 +12,9 @@ class NetInfo
   MIN_CENTER_RADIUS_IN_METERS = 50000
   MAX_CENTER_RADIUS_TO_SHOW = 3000000
   LOCK_TIMEOUT = 2
+  FAVORITE_CALL_SIGNS_CACHE_KEY = 'fav_callsigns'
+  FAVORITE_CALL_SIGNS_CACHE_TTL = 60 * 60
+  FAVORITE_CALL_SIGNS_CACHE_EMPTY_SENTINEL = '__EMPTY__'
 
   class NotFoundError < StandardError; end
   class ServerError < StandardError; end
@@ -309,18 +312,11 @@ class NetInfo
       end
     end
 
-    ### Push Notifications for Favorite Station Check-ins ###
-
-    # Ask Redis SMISMEMBER fav_callsigns for all new callsigns at once → get back a boolean array
-    # Filter down to only the ones that are actually favorited by someone
-    # If any → query the DB for Favorite rows matching those callsigns, with users+devices preloaded
-    # For each match, send a push notification to every device that user has registered
-
     if new_call_signs.any?
       call_sign_map = new_call_signs.index_by(&:upcase)
 
-      hits = REDIS.smismember('fav_callsigns', *call_sign_map.keys)
-      favorited = call_sign_map.keys.zip(hits).filter_map { |cs, hit| cs if hit }
+      # Use redis for quick check to see if any of these call signs are favorited by any user.
+      favorited = favorited_call_signs(call_sign_map.keys)
 
       if favorited.any?
         # Query necessary because we need to know which users to send notifications to.
@@ -381,6 +377,25 @@ class NetInfo
     end
 
     changes
+  end
+
+  def favorited_call_signs(call_signs)
+    ensure_favorite_call_sign_cache!
+    hits = REDIS.smismember(FAVORITE_CALL_SIGNS_CACHE_KEY, *call_signs)
+    call_signs.zip(hits).filter_map { |cs, hit| cs if hit }
+  end
+
+  def ensure_favorite_call_sign_cache!
+    return if REDIS.exists?(FAVORITE_CALL_SIGNS_CACHE_KEY)
+
+    call_signs = Tables::Favorite.distinct.pluck(:call_sign)
+    members = call_signs.empty? ? [FAVORITE_CALL_SIGNS_CACHE_EMPTY_SENTINEL] : call_signs
+
+    REDIS.multi do |pipeline|
+      pipeline.del(FAVORITE_CALL_SIGNS_CACHE_KEY)
+      pipeline.sadd(FAVORITE_CALL_SIGNS_CACHE_KEY, *members)
+      pipeline.expire(FAVORITE_CALL_SIGNS_CACHE_KEY, FAVORITE_CALL_SIGNS_CACHE_TTL)
+    end
   end
 
   def update_messages(messages)

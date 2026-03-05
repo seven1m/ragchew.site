@@ -1019,8 +1019,6 @@ post '/api/favorite/:call_sign' do
     last_name: station && station[:last_name],
   )
 
-  REDIS.sadd('fav_callsigns', fave.call_sign)
-
   { favorited: true }.to_json
 end
 
@@ -1030,7 +1028,6 @@ post '/api/unfavorite/:call_sign' do
 
   cs_upper = params[:call_sign].upcase
   @user.favorites.where(call_sign: cs_upper).delete_all
-  REDIS.srem('fav_callsigns', cs_upper) unless Tables::Favorite.where(call_sign: cs_upper).exists?
 
   { favorited: false }.to_json
 end
