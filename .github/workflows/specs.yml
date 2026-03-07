@@ -1,0 +1,60 @@
+name: Specs
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  rspec:
+    runs-on: ubuntu-latest
+
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: netlogger_test
+          MYSQL_USER: netlogger
+          MYSQL_PASSWORD: netlogger
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -uroot -proot"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+      redis:
+        image: redis:7
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd="redis-cli ping"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+
+    env:
+      RACK_ENV: test
+      REDIS_URL: redis://127.0.0.1:6379
+      REDIS_DB: 15
+      TEST_DATABASE_URL: mysql://netlogger:netlogger@127.0.0.1:3306/netlogger_test
+      DATABASE_URL: mysql://netlogger:netlogger@127.0.0.1:3306/netlogger_test
+      SESSION_SECRET: test-session-secret-test-session-secret-test-session-secret-test-session-secret
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install system packages
+        run: sudo apt-get update && sudo apt-get install -y default-libmysqlclient-dev pkg-config
+
+      - name: Set up Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: 3.3.10
+          bundler-cache: true
+
+      - name: Run migrations
+        run: bundle exec rake db:migrate
+
+      - name: Run specs
+        run: bundle exec rspec
