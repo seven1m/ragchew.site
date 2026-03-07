@@ -1,0 +1,612 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>RagChew — Amateur Radio Net Tracker</title>
+  <meta name="description" content="A mobile app for following amateur radio nets on iOS and Android. See active nets, check-in lists, net chat, and more.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --blue:       #2563EB;
+      --blue-light: #3B82F6;
+      --blue-dim:   rgba(37, 99, 235, 0.15);
+      --bg:         #0D1117;
+      --bg-card:    #161B22;
+      --bg-card2:   #1C2330;
+      --border:     rgba(255,255,255,0.08);
+      --text:       #F0F6FC;
+      --muted:      #8B949E;
+      --radius:     16px;
+    }
+
+    html { scroll-behavior: smooth; }
+    html, body { overflow-x: hidden; }
+
+    body {
+      font-family: 'Inter', system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    a { color: inherit; text-decoration: none; }
+
+    /* ── Nav ── */
+    nav {
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 5%;
+      height: 64px;
+      background: rgba(13, 17, 23, 0.85);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border);
+    }
+
+    .nav-logo {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 1.1rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+    }
+
+    .nav-logo img {
+      width: 30px;
+      height: 30px;
+      border-radius: 8px;
+    }
+
+    .nav-links {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 9px 18px;
+      border-radius: 10px;
+      font-size: 0.875rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.15s ease;
+      white-space: nowrap;
+    }
+
+    .btn-ghost {
+      color: var(--muted);
+      background: transparent;
+    }
+    .btn-ghost:hover { color: var(--text); background: var(--border); }
+
+    .btn-primary {
+      background: var(--blue);
+      color: #fff;
+    }
+    .btn-primary:hover { background: var(--blue-light); }
+
+    /* ── Hero ── */
+    .hero {
+      text-align: center;
+      padding: 96px 5% 80px;
+      max-width: 760px;
+      margin: 0 auto;
+    }
+
+    .hero h1 {
+      font-size: clamp(2rem, 5vw, 3rem);
+      font-weight: 700;
+      letter-spacing: -0.03em;
+      line-height: 1.15;
+      margin-bottom: 20px;
+    }
+
+    .hero-sub {
+      font-size: 1.2rem;
+      color: var(--muted);
+      max-width: 520px;
+      margin: 0 auto 44px;
+      line-height: 1.7;
+    }
+
+    .store-buttons {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 14px;
+      flex-wrap: wrap;
+    }
+
+    .store-btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      transition: transform 0.15s ease, opacity 0.15s ease;
+    }
+
+    .store-btn:hover {
+      transform: translateY(-1px);
+      opacity: 0.96;
+    }
+
+    .store-btn img {
+      display: block;
+      height: 56px;
+      width: auto;
+    }
+
+    .store-btn-google img {
+      height: 84px;
+    }
+
+    /* ── Screenshots ── */
+    .screenshots-section {
+      padding: 20px 0 80px;
+      overflow: hidden;
+    }
+
+    .screenshots-track {
+      display: flex;
+      justify-content: center;
+      gap: 20px;
+      padding: 20px 5% 28px;
+      overflow-x: auto;
+      scrollbar-width: none;
+      -ms-overflow-style: none;
+      scroll-snap-type: x mandatory;
+      scroll-padding-inline: 5%;
+      -webkit-overflow-scrolling: touch;
+    }
+    .screenshots-track::-webkit-scrollbar { display: none; }
+
+    .screenshot-item {
+      flex-shrink: 0;
+      scroll-snap-align: center;
+      position: relative;
+    }
+
+    .screenshot-item img {
+      height: 520px;
+      max-width: min(78vw, 320px);
+      width: auto;
+      border-radius: 32px;
+      display: block;
+      box-shadow:
+        0 0 0 1px rgba(255,255,255,0.08),
+        0 24px 60px rgba(0,0,0,0.6);
+    }
+
+    /* ── Features ── */
+    .features-section {
+      padding: 80px 5%;
+      max-width: 1100px;
+      margin: 0 auto;
+    }
+
+    .section-header {
+      text-align: center;
+      margin-bottom: 56px;
+    }
+
+    .section-header h2 {
+      font-size: clamp(1.8rem, 4vw, 2.5rem);
+      font-weight: 800;
+      letter-spacing: -0.03em;
+      line-height: 1.2;
+    }
+
+    .section-header p {
+      margin-top: 14px;
+      color: var(--muted);
+      font-size: 1.05rem;
+      max-width: 500px;
+      margin-left: auto;
+      margin-right: auto;
+    }
+
+    .features-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      gap: 20px;
+    }
+
+    .feature-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 28px;
+    }
+
+    .feature-icon {
+      width: 44px;
+      height: 44px;
+      background: var(--blue-dim);
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 18px;
+      font-size: 1.3rem;
+    }
+
+    .feature-card h3 {
+      font-size: 1rem;
+      font-weight: 700;
+      margin-bottom: 8px;
+      letter-spacing: -0.01em;
+    }
+
+    .feature-card p {
+      font-size: 0.9rem;
+      color: var(--muted);
+      line-height: 1.6;
+    }
+
+    /* ── Web version strip ── */
+    .web-strip {
+      margin: 0 5% 80px;
+      padding: 36px 40px;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 24px;
+      flex-wrap: wrap;
+      max-width: 1100px;
+      margin-left: auto;
+      margin-right: auto;
+    }
+
+    .web-strip-text h3 {
+      font-size: 1.15rem;
+      font-weight: 700;
+      margin-bottom: 6px;
+    }
+
+    .web-strip-text p {
+      color: var(--muted);
+      font-size: 0.9rem;
+    }
+
+    /* ── Footer ── */
+    footer {
+      border-top: 1px solid var(--border);
+      padding: 40px 5%;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 16px;
+    }
+
+    .footer-logo {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-weight: 700;
+      font-size: 0.95rem;
+    }
+
+    .footer-logo img {
+      width: 24px;
+      height: 24px;
+      border-radius: 6px;
+    }
+
+    .footer-links {
+      display: flex;
+      gap: 24px;
+      font-size: 0.85rem;
+      color: var(--muted);
+      flex-wrap: wrap;
+    }
+
+    .footer-links a:hover { color: var(--text); }
+
+    .footer-copy {
+      font-size: 0.8rem;
+      color: var(--muted);
+      width: 100%;
+    }
+
+    /* ── Responsive ── */
+    @media (max-width: 900px) {
+      .hero {
+        padding-top: 80px;
+        padding-bottom: 64px;
+      }
+
+      .hero-sub {
+        font-size: 1.05rem;
+        margin-bottom: 32px;
+      }
+
+      .screenshots-section {
+        padding-bottom: 64px;
+      }
+
+      .screenshots-track {
+        justify-content: flex-start;
+        gap: 16px;
+        padding-inline: 24px;
+        scroll-padding-inline: 24px;
+      }
+
+      .screenshot-item img {
+        height: min(72vh, 480px);
+        max-width: min(76vw, 300px);
+        border-radius: 28px;
+      }
+
+      .features-section {
+        padding-top: 64px;
+        padding-bottom: 64px;
+      }
+
+      .section-header {
+        margin-bottom: 36px;
+      }
+
+      .features-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+    }
+
+    @media (max-width: 600px) {
+      nav {
+        height: auto;
+        min-height: 64px;
+        padding-top: 12px;
+        padding-bottom: 12px;
+        align-items: flex-start;
+        gap: 12px;
+      }
+
+      .nav-logo {
+        font-size: 1rem;
+      }
+
+      .nav-links {
+        width: 100%;
+      }
+
+      .nav-links .btn-ghost {
+        display: inline-flex;
+        width: 100%;
+        justify-content: center;
+      }
+
+      .hero {
+        padding: 56px 5% 48px;
+      }
+
+      .hero h1 {
+        font-size: clamp(2.2rem, 10vw, 2.8rem);
+        margin-bottom: 16px;
+      }
+
+      .hero-sub {
+        font-size: 1rem;
+        line-height: 1.6;
+        margin-bottom: 28px;
+      }
+
+      .store-buttons {
+        gap: 12px;
+      }
+
+      .store-btn {
+        width: 100%;
+        max-width: 240px;
+      }
+
+      .screenshots-section {
+        padding-top: 8px;
+        padding-bottom: 48px;
+      }
+
+      .screenshots-track {
+        padding-inline: 16px;
+        padding-bottom: 20px;
+        scroll-padding-inline: 16px;
+      }
+
+      .screenshot-item img {
+        height: auto;
+        width: min(82vw, 300px);
+        max-width: 100%;
+        border-radius: 24px;
+      }
+
+      .features-section {
+        padding: 56px 5%;
+      }
+
+      .features-grid {
+        grid-template-columns: 1fr;
+        gap: 16px;
+      }
+
+      .feature-card {
+        padding: 22px;
+      }
+
+      .feature-card p {
+        font-size: 0.95rem;
+      }
+
+      .web-strip {
+        margin-bottom: 56px;
+        padding: 24px 20px;
+        align-items: flex-start;
+      }
+
+      .web-strip .btn {
+        width: 100%;
+        justify-content: center;
+      }
+
+      footer {
+        flex-direction: column;
+        align-items: flex-start;
+        padding-top: 32px;
+      }
+
+      .footer-links {
+        gap: 14px 18px;
+      }
+    }
+
+    @media (max-width: 400px) {
+      .hero {
+        padding-top: 44px;
+      }
+
+      .store-btn {
+        min-width: 0;
+      }
+
+      .screenshot-item img {
+        width: 86vw;
+      }
+
+      .feature-card {
+        padding: 20px;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Nav -->
+  <nav>
+    <a href="/" class="nav-logo">
+      <img src="/images/app-icon.png" alt="RagChew icon">
+      RagChew
+    </a>
+    <div class="nav-links">
+      <a href="https://ragchew.site" class="btn btn-ghost">Web Version</a>
+    </div>
+  </nav>
+
+  <!-- Hero -->
+  <section class="hero">
+    <h1>RagChew</h1>
+    <p class="hero-sub">A mobile app for following amateur radio nets. See who's on the air, browse check-in lists, read net chat, and track your favorite stations — on iOS and Android.</p>
+    <div class="store-buttons">
+      <!-- TODO: replace # with real App Store URL -->
+      <a href="#" class="store-btn store-btn-apple" aria-label="Download on the App Store">
+        <img src="/images/store-badges/download-on-the-app-store.svg" alt="Download on the App Store">
+      </a>
+      <!-- TODO: replace # with real Google Play URL -->
+      <a href="#" class="store-btn store-btn-google" aria-label="Get it on Google Play">
+        <img src="/images/store-badges/google-play-badge.png" alt="Get it on Google Play">
+      </a>
+    </div>
+  </section>
+
+  <!-- Screenshots -->
+  <section class="screenshots-section">
+    <div class="screenshots-track">
+      <div class="screenshot-item">
+        <img src="/images/screenshots/screenshot-5.png" alt="RagChew profile and navigation">
+      </div>
+      <div class="screenshot-item">
+        <img src="/images/screenshots/screenshot-1.png" alt="Net details with live status and map">
+      </div>
+      <div class="screenshot-item">
+        <img src="/images/screenshots/screenshot-3.png" alt="Check-in list for a net">
+      </div>
+      <div class="screenshot-item">
+        <img src="/images/screenshots/screenshot-2.png" alt="Live net chat">
+      </div>
+      <div class="screenshot-item">
+        <img src="/images/screenshots/screenshot-4.png" alt="Club and group details">
+      </div>
+    </div>
+  </section>
+
+  <!-- Features -->
+  <section class="features-section">
+    <div class="section-header">
+      <h2>What's in the app</h2>
+    </div>
+    <div class="features-grid">
+      <div class="feature-card">
+        <div class="feature-icon">📡</div>
+        <h3>Active Nets</h3>
+        <p>A live list of nets currently on the air, with frequency, mode, band, and start time. Updates automatically in the background.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">✅</div>
+        <h3>Check-in List</h3>
+        <p>The full check-in log for any net, searchable by callsign, name, or remarks. Stations with grid squares appear on a map.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">💬</div>
+        <h3>Net Chat</h3>
+        <p>Read and send instant messages on any net you're monitoring. Requires a QRZ account to participate.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">🔔</div>
+        <h3>Favorites &amp; Notifications</h3>
+        <p>Get push notifications when a favorited net starts or a favorited station checks into any net.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">🏛️</div>
+        <h3>Clubs &amp; Groups</h3>
+        <p>A directory of amateur radio clubs, each listing the nets associated with that club.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">📋</div>
+        <h3>Closed Nets</h3>
+        <p>Browse nets that have recently closed. Filter by date range or search by name.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- Web version strip -->
+  <div class="web-strip">
+    <div class="web-strip-text">
+      <h3>Also available on the web</h3>
+      <p>ragchew.site has the same data in a browser.</p>
+    </div>
+    <a href="https://ragchew.site" class="btn btn-ghost" style="border: 1px solid var(--border); color: var(--text);">
+      ragchew.site &rarr;
+    </a>
+  </div>
+
+  <!-- Footer -->
+  <footer>
+    <div class="footer-logo">
+      <img src="/images/app-icon.png" alt="RagChew icon">
+      RagChew
+    </div>
+    <div class="footer-links">
+      <a href="https://ragchew.site/privacy">Privacy Policy</a>
+      <a href="https://ragchew.site/support">Support</a>
+      <a href="https://github.com/timmorgan/ragchew.site">GitHub</a>
+    </div>
+    <p class="footer-copy">
+      Built by KI5ZDF &amp; KI5ZDG &nbsp;&middot;&nbsp; Data via NetLogger (not affiliated) &nbsp;&middot;&nbsp; &copy; <%= Time.now.year %> Tim Morgan
+    </p>
+  </footer>
+
+</body>
+</html>
