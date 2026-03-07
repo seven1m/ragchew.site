@@ -15,6 +15,7 @@ env = ENV['RACK_ENV'] || 'development'
 ActiveRecord::Base.establish_connection(db_config[env])
 
 namespace :db do
+  desc 'migrate the database'
   task :migrate do
     context = ActiveRecord::MigrationContext.new(
       File.expand_path('lib/migrations', __dir__)
@@ -24,6 +25,7 @@ namespace :db do
   end
 
   namespace :migrate do
+    desc 'migrate the database down one version'
     task :down do
       context = ActiveRecord::MigrationContext.new(
         File.expand_path('lib/migrations', __dir__),
@@ -34,6 +36,7 @@ namespace :db do
       context.migrate(latest - 1)
     end
 
+    desc 'redo the last database migration'
     task :redo do
       context = ActiveRecord::MigrationContext.new(
         File.expand_path('lib/migrations', __dir__),
@@ -52,6 +55,7 @@ task :console do
   binding.irb
 end
 
+desc 'open a mysql console'
 task :db do
   require 'uri'
 
@@ -70,6 +74,7 @@ task :db do
   exec(*cmd)
 end
 
+desc 'run CODE'
 task :runner do
   eval(ENV.fetch('CODE'))
 end
@@ -78,6 +83,7 @@ MAX_IDLE_MONITORING = 5.minutes
 MAX_IDLE_NET = 30.minutes
 
 # Runs every 5 minutes
+desc 'Run cleanup tasks: inactive users and nets'
 task :cleanup do
   # users stop monitoring if they have not refreshed the page in a while
   scope = Tables::User
@@ -121,6 +127,7 @@ task :cleanup do
 end
 
 # Runs every 10 minutes
+desc 'Populate database with new net info'
 task :populate do
   nets = NetList.new.list
   nets.each do |net|
@@ -134,6 +141,7 @@ task :populate do
 end
 
 # Runs nightly
+desc 'Update the club list'
 task :update_club_list do
   UpdateClubList.new.call
 end
@@ -146,6 +154,7 @@ def build_stats(range, period_name, period)
   Tables::Stat.find_or_initialize_by(name: "active_users_per_#{period_name}", period:).update!(value: active_users)
 end
 
+desc 'Update stats graphs'
 task :stats do
   Time.zone = 'America/Chicago'
   now = Time.zone.now
