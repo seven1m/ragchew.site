@@ -9,7 +9,7 @@ class NetList
   ServerError = Class.new(Error)
   ParseError = Class.new(Error)
 
-  def list(order: :name, include_testing: false)
+  def list(order: :name, include_testing: true)
     update_cache
     scope = Tables::Net.includes(:club).order(order)
     scope = scope.where(ragchew_only_testing_net: false) unless include_testing
