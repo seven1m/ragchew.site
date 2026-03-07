@@ -1,8 +1,18 @@
 /* Dark mode overrides */
 
+:root {
+  --text-color: #e0e0e0;
+  --muted-text: #888;
+  --rule-color: #666;
+}
+
 body {
   background-color: #1a1a1a;
   color: #e0e0e0;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  color: #f3f4f6;
 }
 
 /* Text colors */
@@ -32,11 +42,11 @@ footer a, footer a:visited {
 
 /* Borders and dividers */
 .h2-with-controls {
-  border-bottom: 3px double #666;
+  border-bottom: 3px double var(--rule-color);
 }
 
 h2 {
-  border-bottom: 3px double #666;
+  border-bottom: 3px double var(--rule-color);
 }
 
 /* Table styling */

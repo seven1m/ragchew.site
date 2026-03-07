@@ -483,8 +483,7 @@ class Net extends Component {
       })}
 
       <div class="h2-with-controls">
-        <a name="messages"></a>
-        <h2>Messages</h2>
+        <h2 id="messages">Messages</h2>
         ${this.state.monitoringThisNet &&
         html`<label>
             <input
