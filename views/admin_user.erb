@@ -34,7 +34,7 @@
   <dt>Monitoring net:</dt>
   <dd>
     <% if @user_to_edit.monitoring_net %>
-      <a href="/admin/nets/<%= url_escape @user_to_edit.monitoring_net.name %>"><%== @user_to_edit.monitoring_net.name %></a>
+      <a href="/admin/nets/<%= @user_to_edit.monitoring_net.id %>"><%== @user_to_edit.monitoring_net.name %></a>
     <% else %>
       <em>none</em>
     <% end %>
@@ -50,7 +50,7 @@
   <dt>Logging net:</dt>
   <dd>
     <% if @user_to_edit.logging_net %>
-      <a href="/admin/nets/<%= url_escape @user_to_edit.logging_net.name %>"><%== @user_to_edit.logging_net.name %></a>
+      <a href="/admin/nets/<%= @user_to_edit.logging_net.id %>"><%== @user_to_edit.logging_net.name %></a>
       <% if (last_checkin_change_at = @user_to_edit.logging_net.checkins.maximum(:updated_at)) %>
         (last change <%== distance_of_time_in_words Time.now, last_checkin_change_at %> ago)
       <% else %>
