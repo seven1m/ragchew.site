@@ -7,6 +7,33 @@ require_relative './lib/abuse_middleware'
 
 require_relative './boot'
 
+# ── Apple App Store review demo account ───────────────────────────
+# Set APPLE_REVIEW_DEMO_ENABLED = false after review is approved
+APPLE_REVIEW_DEMO_ENABLED   = true
+APPLE_REVIEW_DEMO_CALL_SIGN = 'REVIEWDEMO'
+APPLE_REVIEW_DEMO_PASSWORD  = 'RagChewReview!'
+APPLE_REVIEW_DEMO_NET_NAME  = 'RagChew App Testing Review Net'
+# ──────────────────────────────────────────────────────────────────
+
+if APPLE_REVIEW_DEMO_ENABLED
+  configure do
+    Tables::Net.find_or_create_by!(name: APPLE_REVIEW_DEMO_NET_NAME) do |net|
+      net.frequency            = '146.520'
+      net.mode                 = 'FM'
+      net.band                 = '2m'
+      net.net_control          = 'REVIEWDEMO'
+      net.net_logger           = 'REVIEWDEMO'
+      net.started_at           = Time.now
+      net.im_enabled           = true
+      net.update_interval      = 30000
+      net.subscribers          = 0
+      net.host                 = 'ragchew.site'
+      net.created_by_ragchew   = true
+      net.ragchew_only_testing_net = true
+    end
+  end
+end
+
 disable :protection
 set :host_authorization, { permitted_hosts: [] }
 
@@ -1272,6 +1299,18 @@ post '/api/auth/login' do
     status 400
     return { error: 'call_sign and password are required' }.to_json
   end
+
+  # ── Apple review demo bypass ──────────────────────────────────────
+  if APPLE_REVIEW_DEMO_ENABLED && call_sign.upcase == APPLE_REVIEW_DEMO_CALL_SIGN && password == APPLE_REVIEW_DEMO_PASSWORD
+    user = Tables::User.find_or_create_by!(call_sign: APPLE_REVIEW_DEMO_CALL_SIGN) do |u|
+      u.first_name = 'Review'
+      u.last_name  = 'Demo'
+    end
+    user.update!(last_signed_in_at: Time.now)
+    api_token = Tables::ApiToken.generate_for(user)
+    return { token: api_token.raw_token, user: user }.to_json
+  end
+  # ─────────────────────────────────────────────────────────────────
 
   begin
     qrz = Qrz.login(username: call_sign, password: password)
