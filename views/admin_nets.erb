@@ -7,6 +7,7 @@
         <tr>
           <th></th>
           <th>Club</th>
+          <th>Canonical</th>
           <th>Name</th>
           <th>Frequency</th>
           <th>Mode</th>
@@ -22,6 +23,11 @@
             <td>
               <% if net.club %>
                 <a href="/group/<%== url_escape(net.club.name) %>"><%== net.club.name %></a>
+              <% end %>
+            </td>
+            <td>
+              <% if net.canonical_net %>
+                <a href="/admin/canonical-nets?name=<%== url_escape(net.canonical_net.canonical_name) %>"><%== net.canonical_net.canonical_name %></a>
               <% end %>
             </td>
             <td>

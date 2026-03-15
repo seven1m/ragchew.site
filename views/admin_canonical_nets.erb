@@ -1,0 +1,141 @@
+<h1>Canonical Nets</h1>
+
+<form action="/admin/canonical-nets">
+  <input type="text" name="name" value="<%== make_value_safe_for_html_attribute(params[:name]) %>" placeholder="search canonical name"/>
+  <button>search</button>
+  <% if params[:name].present? %>
+    <a href="/admin/canonical-nets">clear</a>
+  <% end %>
+</form>
+
+<form action="/admin/canonical-nets/rebuild-suggestions" method="post" class="inline">
+  <button>Update Suggestions</button>
+</form>
+
+<% if @suggested_canonical_net_groups.any? %>
+  <h2>Suggested Merges</h2>
+  <p>These groups look similar by normalized name, band, and frequency. Uncheck anything that does not belong, edit the canonical name if needed, then merge.</p>
+  <% @suggested_canonical_net_groups.each do |group| %>
+    <% suggested_name = group.canonical_nets.first&.canonical_name || group.raw_names.first %>
+    <div class="admin-only">
+      <form action="/admin/canonical-nets/merge" method="post">
+        <p><strong><%= group.frequency %> <%= group.band %></strong></p>
+        <p>
+          <input
+            type="text"
+            name="canonical_name"
+            value="<%== make_value_safe_for_html_attribute(suggested_name) %>"
+            size="40"
+          />
+        </p>
+        <% group.canonical_nets.each do |canonical_net| %>
+          <label style="display:block; margin: 6px 0;">
+            <input type="checkbox" name="canonical_net_ids[]" value="<%== canonical_net.id %>" checked />
+            <%== canonical_net.canonical_name %>
+            <% aliases = canonical_net.all_names - [canonical_net.canonical_name] %>
+            <% if aliases.any? %>
+              <span style="color:#666">(<%== aliases.join(', ') %>)</span>
+            <% end %>
+          </label>
+        <% end %>
+        <p>
+          <button>Merge</button>
+        </p>
+      </form>
+      <form action="/admin/canonical-net-suggestions/ignore" method="post" class="inline">
+        <input type="hidden" name="signature" value="<%== make_value_safe_for_html_attribute(group.signature) %>"/>
+        <input type="hidden" name="summary" value="<%== make_value_safe_for_html_attribute("#{group.frequency} #{group.band}: #{group.canonical_nets.map(&:canonical_name).join(', ')}") %>"/>
+        <button>Dismiss Suggestion</button>
+      </form>
+    </div>
+  <% end %>
+<% else %>
+  <p><em>No suggested merges right now.</em></p>
+<% end %>
+
+<% if @ignored_canonical_net_suggestion_count.positive? %>
+  <p><a href="/admin/ignored-canonical-net-suggestions"><%= @ignored_canonical_net_suggestion_count %> Ignored Suggestions...</a></p>
+<% end %>
+
+<h2>Existing Canonical Names</h2>
+
+<p>Showing <%= @canonical_nets.size %> of <%= @canonical_nets_total_count %> canonical names.</p>
+
+<form action="/admin/canonical-nets/merge" method="post">
+  <p>
+    Check one or more rows below to merge visible canonical names:
+    <input type="text" name="canonical_name" id="manual-canonical-name" placeholder="canonical display name" size="40"/>
+    <button>Merge Selected</button>
+  </p>
+
+  <div class="table-wrapper">
+    <table>
+      <thead>
+        <tr>
+          <th></th>
+          <th>Canonical Name</th>
+          <th>Active</th>
+          <th>Closed</th>
+          <th>Favorites</th>
+        </tr>
+      </thead>
+      <tbody>
+        <% @canonical_nets.each do |canonical_net| %>
+          <tr>
+            <td>
+              <input type="checkbox" name="canonical_net_ids[]" value="<%== canonical_net.id %>"/>
+            </td>
+            <td>
+              <a href="/admin/canonical-nets/<%== canonical_net.id %>" data-canonical-name="<%== make_value_safe_for_html_attribute(canonical_net.canonical_name) %>"><%== canonical_net.canonical_name %></a>
+            </td>
+            <td><%= canonical_net.nets.count %></td>
+            <td><%= canonical_net.closed_nets.count %></td>
+            <td><%= canonical_net.favorite_count %></td>
+          </tr>
+        <% end %>
+      </tbody>
+    </table>
+  </div>
+</form>
+
+<p>
+  <% if params[:offset].to_i > 0 %>
+    <a href="/admin/canonical-nets<%== params[:name].present? ? "?name=#{url_escape(params[:name])}" : "" %>">start</a>
+  <% end %>
+  <% if params[:offset].to_i > 0 && @canonical_nets_more_pages %>
+    |
+  <% end %>
+  <% if @canonical_nets_more_pages %>
+    <a href="/admin/canonical-nets?offset=<%== params[:offset].to_i + @canonical_nets_per_page %><%== params[:name].present? ? "&name=#{url_escape(params[:name])}" : "" %>">more</a>
+  <% end %>
+</p>
+
+<script>
+  document.addEventListener("DOMContentLoaded", () => {
+    const nameInput = document.getElementById("manual-canonical-name")
+    if (!nameInput) return
+
+    const checkboxes = Array.from(document.querySelectorAll('input[name="canonical_net_ids[]"]'))
+
+    function updateCanonicalName() {
+      const checked = checkboxes.filter((checkbox) => checkbox.checked)
+      if (checked.length === 0) {
+        nameInput.value = ""
+        return
+      }
+
+      const firstChecked = checked[0]
+      const row = firstChecked.closest("tr")
+      const link = row && row.querySelector("a[data-canonical-name]")
+      if (link) {
+        nameInput.value = link.getAttribute("data-canonical-name")
+      }
+    }
+
+    checkboxes.forEach((checkbox) => {
+      checkbox.addEventListener("change", () => {
+        updateCanonicalName()
+      })
+    })
+  })
+</script>

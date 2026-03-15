@@ -14,12 +14,12 @@
         <% @favorite_net_details.each do |favorite_net_detail| %>
           <tr>
             <td>
-              <div data-component="FavoriteNet" data-props="<%= make_value_safe_for_html_attribute({ netName: favorite_net_detail.net_name, favorited: true }.to_json) %>"></div>
+              <div data-component="FavoriteNet" data-props="<%= make_value_safe_for_html_attribute({ canonicalNetId: favorite_net_detail.canonical_net.id, favorited: true }.to_json) %>"></div>
             </td>
-            <td><a href="/net/<%== url_escape(favorite_net_detail.net_name) %>"><%== favorite_net_detail.net_name %></a></td>
+            <td><a href="<%== canonical_net_path(favorite_net_detail.canonical_net) %>"><%== favorite_net_detail.canonical_net.canonical_name %></a></td>
             <td>
               <% if favorite_net_detail.active_net %>
-                <a href="/net/<%= url_escape(favorite_net_detail.net_name) %>">Live now</a>
+                <a href="<%= canonical_net_path(favorite_net_detail.canonical_net) %>">Live now</a>
               <% elsif favorite_net_detail.last_closed_at %>
                 <%= format_time favorite_net_detail.last_closed_at %>
               <% else %>
@@ -35,7 +35,7 @@
   <p><em>You have no favorite nets.</em> Click the <img class="favorite-star" src="/images/star-outline.svg" style="height:15px"/> icon next to a net name to add one.</p>
 <% end %>
 
-<p><em>You can find <a href="/closed-nets">closed nets here</a>. Note that sometimes nets use slightly different names, and we don't do any fuzzy matching here. You'll need to find every variation to add. :-(</em></p>
+<p><em>You can find <a href="/closed-nets">closed nets here</a>. Favorite nets now follow canonical names, so alias variations can share one bookmark and one notification target.</em></p>
 
 <h2>Favorite Stations (<%= @favorite_details.size %>)</h2>
 

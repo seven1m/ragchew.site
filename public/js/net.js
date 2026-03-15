@@ -422,11 +422,11 @@ class Net extends Component {
 
           <h1>
             <${FavoriteNet}
-              netName=${this.props.net.name}
+              canonicalNetId=${this.props.canonicalNet?.id}
               favorited=${this.state.favoritedNet}
               big=${true}
             />
-            ${" "} ${this.props.net.name}
+            ${" "} ${this.props.canonicalNet?.canonical_name || this.props.net.name}
           </h1>
 
           ${this.props.net.ragchew_only_testing_net &&
@@ -434,6 +434,11 @@ class Net extends Component {
             This net is for testing purposes only. It does not sync changes to
             NetLogger.org
           </div>`}
+
+          ${this.props.canonicalNet &&
+          this.props.canonicalNet.canonical_name !== this.props.net.name
+            ? html`<p><em>Logged as ${this.props.net.name}</em></p>`
+            : null}
 
           ${this.renderNetControls()} ${this.renderNetDetails()}
         </div>
@@ -1181,8 +1186,9 @@ class FavoriteNet extends Component {
   }
 
   handleClick() {
+    if (!this.props.canonicalNetId) return
     let func = this.state.favorited ? "unfavorite_net" : "favorite_net"
-    fetch(`/api/${func}/${this.props.netName}`, {
+    fetch(`/api/${func}/${this.props.canonicalNetId}`, {
       method: "POST",
     })
       .then((data) => data.json())
@@ -1194,6 +1200,7 @@ class FavoriteNet extends Component {
 
   render() {
     const image = this.state.favorited ? "star-solid.svg" : "star-outline.svg"
+    if (!this.props.canonicalNetId) return null
 
     return html`
       <img

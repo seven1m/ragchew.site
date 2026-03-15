@@ -4,10 +4,14 @@
 
     <h1>
       <% if @user %>
-        <div data-component="FavoriteNet" data-props="<%= make_value_safe_for_html_attribute({ netName: @closed_net.name, favorited: @favorited_net, big: true }.to_json) %>" style="display:inline"></div>
+        <div data-component="FavoriteNet" data-props="<%= make_value_safe_for_html_attribute({ canonicalNetId: @canonical_net&.id, favorited: @favorited_net, big: true }.to_json) %>" style="display:inline"></div>
       <% end %>
-      <%== @closed_net.name %> (closed)
+      <%== @canonical_net&.canonical_name || @closed_net.name %> (closed)
     </h1>
+
+    <% if @canonical_net && @canonical_net.canonical_name != @closed_net.name %>
+      <p><em>Logged as <%== @closed_net.name %></em></p>
+    <% end %>
 
     <p><em>ended <%== time_ago_in_words(@closed_net.ended_at) %> ago</em></p>
   </div>
@@ -19,15 +23,15 @@
 
 
 <p class="info-callout">
-  <% if @open_net %>
+<% if @open_net %>
     <strong>This net is closed.</strong>
-    <a href="/net/<%= url_escape @open_net.name %>">
-      There is an ongoing net with this same name.
+    <a href="<%= @canonical_net ? canonical_net_path(@canonical_net) : "/net/#{url_escape @open_net.name}" %>">
+      There is an ongoing net in this canonical group.
     </a>
   <% elsif @more_recent_closed_net %>
     <strong>This net is closed.</strong>
     You are viewing a historical record, and not the most recent one.
-    This net last operated <a href="/net/<%= url_escape @more_recent_closed_net.name %>"><%= format_time(@more_recent_closed_net.started_at) %></a>.
+    This net last operated <a href="<%= @canonical_net ? canonical_net_path(@canonical_net) : "/net/#{url_escape @more_recent_closed_net.name}" %>"><%= format_time(@more_recent_closed_net.started_at) %></a>.
   <% else %>
     <strong>This net is closed.</strong> Please check back later,
     <% if @net_count > 0 %>
@@ -67,7 +71,7 @@
   <div class="admin-only">
     Admin only: You are viewing a closed net from the archive.
     <a href="/admin/closed-nets?name=<%== url_escape(@closed_net.name) %>">name search</a> |
-    <a href="/net/<%== url_escape(@closed_net.name) %>">net page</a>
+    <a href="<%== @canonical_net ? canonical_net_path(@canonical_net) : "/net/#{url_escape(@closed_net.name)}" %>">net page</a>
     &nbsp;
     <% if @closed_net.club %>
       <form action="/admin/remove_closed_net_from_club" method="post" onsubmit="if (!confirm('Sure?')) return false" class="inline">
@@ -80,4 +84,20 @@
       <button>delete net</button>
     </form>
   </div>
+<% end %>
+
+<% if @older_closed_net || @more_recent_closed_net %>
+  <p>
+    <% if @older_closed_net %>
+      <a href="/closed-net/<%== @older_closed_net.id %>">previous</a>
+    <% else %>
+      previous
+    <% end %>
+    |
+    <% if @more_recent_closed_net %>
+      <a href="/closed-net/<%== @more_recent_closed_net.id %>">next</a>
+    <% else %>
+      next
+    <% end %>
+  </p>
 <% end %>

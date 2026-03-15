@@ -1,0 +1,17 @@
+<h1>Ignored Canonical Net Suggestions</h1>
+
+<p><a href="/admin/canonical-nets">back to canonical nets</a></p>
+
+<% if @ignored_canonical_net_suggestions.any? %>
+  <% @ignored_canonical_net_suggestions.each do |ignored| %>
+    <div class="admin-only">
+      <%== ignored.summary || ignored.signature %>
+      <form action="/admin/canonical-net-suggestions/<%== ignored.id %>" method="post" class="inline">
+        <input type="hidden" name="_method" value="delete"/>
+        <button>Restore</button>
+      </form>
+    </div>
+  <% end %>
+<% else %>
+  <p><em>No ignored suggestions.</em></p>
+<% end %>

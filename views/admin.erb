@@ -135,6 +135,11 @@ document.addEventListener("DOMContentLoaded", () => {
         <td><%= format_time Tables::ClosedNet.maximum(:created_at) %></td>
       </tr>
       <tr>
+        <td><a href="/admin/table/canonical_nets">canonical nets</a></td>
+        <td><%= Tables::CanonicalNet.count %></td>
+        <td><%= format_time Tables::CanonicalNet.maximum(:updated_at) %></td>
+      </tr>
+      <tr>
         <td><a href="/admin/clubs">clubs</a></td>
         <td><%= Tables::Club.count %></td>
         <td><%= format_time Tables::Club.maximum(:updated_at) %></td>
@@ -163,6 +168,11 @@ document.addEventListener("DOMContentLoaded", () => {
         <td><a href="/admin/table/favorite_nets">favorite nets</a></td>
         <td><%= Tables::FavoriteNet.count %></td>
         <td><%= format_time Tables::FavoriteNet.maximum(:created_at) %></td>
+      </tr>
+      <tr>
+        <td><a href="/admin/table/ignored_canonical_net_suggestions">ignored canonical net suggestions</a></td>
+        <td><%= Tables::IgnoredCanonicalNetSuggestion.count %></td>
+        <td><%= format_time Tables::IgnoredCanonicalNetSuggestion.maximum(:created_at) %></td>
       </tr>
       <tr>
         <td><a href="/admin/table/monitors">monitors</a></td>
@@ -203,6 +213,11 @@ document.addEventListener("DOMContentLoaded", () => {
         <td><a href="/admin/table/stats">stats</a></td>
         <td><%= Tables::Stat.count %></td>
         <td><%= format_time Tables::Stat.maximum(:updated_at) %></td>
+      </tr>
+      <tr>
+        <td><a href="/admin/table/suggested_canonical_net_merges">suggested canonical net merges</a></td>
+        <td><%= Tables::SuggestedCanonicalNetMerge.count %></td>
+        <td><%= format_time Tables::SuggestedCanonicalNetMerge.maximum(:created_at) %></td>
       </tr>
       <tr>
         <td><a href="/admin/table/suggested_clubs">suggested clubs</a></td>

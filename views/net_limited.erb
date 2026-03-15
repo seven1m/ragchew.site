@@ -2,7 +2,11 @@
   <div class="header-col-grow">
     <%= erb :_club_breadcrumb, locals: { net: @net } %>
 
-    <h1><%== @net.name %></h1>
+    <h1><%== @canonical_net&.canonical_name || @net.name %></h1>
+
+    <% if @canonical_net && @canonical_net.canonical_name != @net.name %>
+      <p><em>Logged as <%== @net.name %></em></p>
+    <% end %>
 
     <form action="/login">
       <input type="hidden" name="net" value="<%== url_escape(@net.name) %>"/>

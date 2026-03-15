@@ -165,6 +165,10 @@ helpers do
     CGI.escape(s.to_s)
   end
 
+  def canonical_net_path(canonical_net)
+    "/nets/#{canonical_net.id}"
+  end
+
   def make_url_safe_for_html_attribute(s)
     s.to_s.gsub('"', '%22')
   end
@@ -375,13 +379,65 @@ get '/privacy' do
   erb :privacy
 end
 
+get '/nets/:id' do
+  @canonical_net = Tables::CanonicalNet.find(params[:id])
+  representation = CanonicalNetResolver.representative_for(@canonical_net)
+  halt 404, erb(:missing_net) unless representation
+
+  case representation[:type]
+  when :active
+    @net = representation[:record]
+    @page_title = @canonical_net.canonical_name
+
+    if @user&.monitoring_net == @net
+      @user.update!(monitoring_net_last_refreshed_at: Time.now)
+    end
+
+    if @user
+      @is_logger = @user.logging_net == @net
+      @messages = @net.messages.order(:sent_at).to_a
+      @monitors = @net.monitors.order(:call_sign).to_a
+      @favorites = @user.favorites.pluck(:call_sign)
+      @favorited_net = @user.favorite_nets.where(canonical_net_id: @canonical_net.id).any?
+      @blocked_stations = @user.blocked_stations.pluck(:call_sign)
+      @net_blocked_stations = @is_logger ? @net.blocked_stations.pluck(:call_sign) : []
+      @last_updated_at = @net.fully_updated_at
+      @update_interval = @net.update_interval_in_seconds + 1
+      erb :net
+    else
+      @is_logger = false
+      @checkin_count = @net.checkins.count
+      @message_count = @net.messages.count
+      @monitor_count = @net.monitors.count
+      erb :net_limited
+    end
+  when :closed
+    @closed_net = representation[:record]
+    @name = @canonical_net.canonical_name
+    @page_title = @name
+    @checkin_count = @closed_net.checkin_count
+    @message_count = @closed_net.message_count
+    @monitor_count = @closed_net.monitor_count
+    @net_count = Tables::Net.count
+    @favorited_net = @user.favorite_nets.where(canonical_net_id: @canonical_net.id).any? if @user
+    @more_recent_closed_net = @canonical_net.closed_nets.where('started_at > ?', @closed_net.started_at).order(started_at: :desc).first
+    @open_net = @canonical_net.representative_active_net
+    erb :closed_net
+  end
+rescue ActiveRecord::RecordNotFound
+  status 404
+  erb :missing_net
+end
+
 get '/net/:name' do
   params[:name] = CGI.unescape(params[:name])
+  @canonical_net = CanonicalNetResolver.resolve(params[:name])
   service = NetInfo.new(name: params[:name])
 
   service.update!
   @net = service.net
-  @page_title = @net.name
+  @canonical_net ||= @net.canonical_net
+  @page_title = @canonical_net&.canonical_name || @net.name
 
   if @user&.monitoring_net == @net
     @user.update!(monitoring_net_last_refreshed_at: Time.now)
@@ -392,7 +448,7 @@ get '/net/:name' do
     @messages = @net.messages.order(:sent_at).to_a
     @monitors = @net.monitors.order(:call_sign).to_a
     @favorites = @user.favorites.pluck(:call_sign)
-    @favorited_net = @user.favorite_nets.where(net_name: @net.name).any?
+    @favorited_net = @user.favorite_nets.where(canonical_net_id: @canonical_net&.id).any?
     @blocked_stations = @user.blocked_stations.pluck(:call_sign)
     @net_blocked_stations = @is_logger ? @net.blocked_stations.pluck(:call_sign) : []
     @last_updated_at = @net.fully_updated_at
@@ -410,11 +466,17 @@ rescue NetInfo::NotFoundError
   if Tables::BlockedNet.blocked?(params[:name])
     @name = nil
   else
-    @closed_net = Tables::ClosedNet.where(name: params[:name]).order(started_at: :desc).first
-    @page_title = @name = @closed_net&.name
+    @canonical_net = CanonicalNetResolver.resolve(params[:name])
+    @closed_net = if @canonical_net
+                    @canonical_net.representative_closed_net
+                  else
+                    Tables::ClosedNet.where(name: params[:name]).order(started_at: :desc).first
+                  end
+    @page_title = @name = @canonical_net&.canonical_name || @closed_net&.name
   end
   if @closed_net
-    @favorited_net = @user.favorite_nets.where(net_name: @closed_net.name).any? if @user
+    @canonical_net ||= @closed_net.canonical_net
+    @favorited_net = @user.favorite_nets.where(canonical_net_id: @canonical_net&.id).any? if @user
     @checkin_count = @closed_net.checkin_count
     @message_count = @closed_net.message_count
     @monitor_count = @closed_net.monitor_count
@@ -435,15 +497,16 @@ get '/api/net_id/:name' do
   content_type 'application/json'
 
   params[:name] = CGI.unescape(params[:name])
-  service = NetInfo.new(name: params[:name])
-
-  { id: service.net.id }.to_json
-rescue NetInfo::NotFoundError
-  status 404
-  if (closed_net = Tables::ClosedNet.where(name: params[:name]).order(started_at: :desc).first)
-    { error: "net closed", closedNetId: closed_net.id }.to_json
+  if (net = Tables::Net.find_by(name: params[:name]))
+    { id: net.id, canonicalNetId: net.canonical_net_id }.to_json
   else
-    { error: "not found" }.to_json
+    canonical_net = CanonicalNetResolver.resolve(params[:name])
+    status 404
+    if canonical_net && (closed_net = canonical_net.representative_closed_net)
+      { error: "net closed", closedNetId: closed_net.id, canonicalNetId: canonical_net.id }.to_json
+    else
+      { error: "not found" }.to_json
+    end
   end
 end
 
@@ -490,10 +553,11 @@ get '/api/net/:id/details' do
   messages = monitoring_this_net ? net.messages.includes(:message_reactions).order(:sent_at).to_a : []
   messages.reject! { |m| m.blocked? && m.call_sign.upcase != @user.call_sign.upcase }
   favorites = @user.favorites.pluck(:call_sign)
-  favorited_net = @user.favorite_nets.where(net_name: net.name).any?
+  favorited_net = @user.favorite_nets.where(canonical_net_id: net.canonical_net_id).any?
 
   {
     net:,
+    canonicalNet: net.canonical_net,
     checkins:,
     coords:,
     messages: messages.as_json(include_reactions: true),
@@ -806,6 +870,7 @@ get '/api/closed-net/:id' do
   content_type 'application/json'
   {
     net: @closed_net.as_json(include: :club),
+    canonicalNet: @canonical_net,
     checkinCount: @checkin_count,
     messageCount: @message_count,
     monitorCount: @monitor_count,
@@ -1066,7 +1131,7 @@ post '/api/unfavorite/:call_sign' do
   { favorited: false }.to_json
 end
 
-post '/api/favorite_net/:net_name' do
+post '/api/favorite_net/:canonical_net_id' do
   content_type 'application/json'
   require_user!
 
@@ -1076,18 +1141,22 @@ post '/api/favorite_net/:net_name' do
     }.to_json
   end
 
-  net_name = params[:net_name].tr('+', ' ')
-  @user.favorite_nets.create!(net_name:)
+  canonical_net = Tables::CanonicalNet.find_by(id: params[:canonical_net_id]) || CanonicalNetResolver.resolve(params[:canonical_net_id].tr('+', ' '))
+  halt 404, { error: 'net not found' }.to_json unless canonical_net
+
+  @user.favorite_nets.create!(canonical_net:)
 
   { favorited: true }.to_json
 end
 
-post '/api/unfavorite_net/:net_name' do
+post '/api/unfavorite_net/:canonical_net_id' do
   content_type 'application/json'
   require_user!
 
-  net_name = params[:net_name].tr('+', ' ')
-  @user.favorite_nets.where(net_name:).delete_all
+  canonical_net = Tables::CanonicalNet.find_by(id: params[:canonical_net_id]) || CanonicalNetResolver.resolve(params[:canonical_net_id].tr('+', ' '))
+  halt 404, { error: 'net not found' }.to_json unless canonical_net
+
+  @user.favorite_nets.where(canonical_net_id: canonical_net.id).delete_all
 
   { favorited: false }.to_json
 end
@@ -1717,10 +1786,128 @@ end
 get '/admin/nets' do
   require_admin!
 
-  @nets = Tables::Net.includes(:club).order(:name).to_a
+  @nets = Tables::Net.includes(:club, :canonical_net).order(:name).to_a
   @clubs = Tables::Club.order(:name).to_a
 
   erb :admin_nets
+end
+
+get '/admin/canonical-nets' do
+  require_admin!
+
+  scope = Tables::CanonicalNet.order(:canonical_name)
+  if params[:name].present?
+    like = "%#{params[:name].gsub(/%/, '\%')}%"
+    scope = scope.where('canonical_name like ?', like)
+  end
+
+  @canonical_nets_total_count = scope.count
+  @canonical_nets_per_page = 100
+  @canonical_nets = scope.offset(params[:offset].to_i).limit(@canonical_nets_per_page).includes(:nets, :closed_nets, :favorite_nets).to_a
+  @canonical_nets_more_pages = (@canonical_nets_total_count - params[:offset].to_i) > @canonical_nets_per_page
+  @suggested_canonical_net_groups = CanonicalNetResolver.suggestions
+  @ignored_canonical_net_suggestion_count = Tables::IgnoredCanonicalNetSuggestion.count
+
+  erb :admin_canonical_nets
+end
+
+post '/admin/canonical-nets/rebuild-suggestions' do
+  require_admin!
+
+  CanonicalNetResolver.rebuild_cached_suggestions!
+  redirect '/admin/canonical-nets'
+end
+
+get '/admin/ignored-canonical-net-suggestions' do
+  require_admin!
+
+  @ignored_canonical_net_suggestions = Tables::IgnoredCanonicalNetSuggestion.order(created_at: :desc).to_a
+  erb :admin_ignored_canonical_net_suggestions
+end
+
+get '/admin/canonical-nets/:id' do
+  require_admin!
+
+  @canonical_net = Tables::CanonicalNet.find(params[:id])
+  @alias_details = @canonical_net.alias_details
+  erb :admin_canonical_net
+end
+
+post '/admin/canonical-nets/merge' do
+  require_admin!
+
+  canonical_net_ids = Array(params[:canonical_net_ids]).map(&:to_i).uniq
+  halt 400, 'select at least two canonical net names' if canonical_net_ids.size < 2
+
+  canonical_nets = Tables::CanonicalNet.where(id: canonical_net_ids).order(:id).to_a
+  halt 404, 'canonical net not found' if canonical_nets.size != canonical_net_ids.size
+
+  desired_name = params[:canonical_name].to_s.strip
+  target = if desired_name.present?
+             canonical_nets.find { |canonical_net| canonical_net.canonical_name == desired_name } || canonical_nets.first
+           else
+             canonical_nets.first
+           end
+  other_groups = canonical_nets.reject { |canonical_net| canonical_net.id == target.id }
+
+  target.merge!(other_groups:, canonical_name: desired_name)
+
+  redirect "/admin/canonical-nets?name=#{url_escape(target.canonical_name)}"
+end
+
+patch '/admin/canonical-nets/:id' do
+  require_admin!
+
+  canonical_net = Tables::CanonicalNet.find(params[:id])
+  canonical_net.update!(canonical_name: params[:canonical_name])
+  canonical_net.favorite_nets.update_all(net_name: canonical_net.canonical_name)
+
+  redirect "/admin/canonical-nets?name=#{url_escape(canonical_net.canonical_name)}"
+end
+
+post '/admin/canonical-nets/:id/remove-alias' do
+  require_admin!
+
+  canonical_net = Tables::CanonicalNet.find(params[:id])
+  canonical_net.split_out_alias!(alias_name: params[:alias_name])
+
+  redirect "/admin/canonical-nets/#{canonical_net.id}"
+rescue ArgumentError => e
+  status 400
+  e.message
+end
+
+delete '/admin/canonical-nets/:id' do
+  require_admin!
+
+  canonical_net = Tables::CanonicalNet.find(params[:id])
+  canonical_net.destroy_with_splits!
+
+  redirect '/admin/canonical-nets'
+rescue ArgumentError => e
+  status 400
+  e.message
+end
+
+post '/admin/canonical-net-suggestions/ignore' do
+  require_admin!
+
+  signature = params[:signature].to_s.strip
+  halt 400, 'missing signature' if signature.empty?
+
+  Tables::IgnoredCanonicalNetSuggestion.find_or_create_by!(signature:) do |ignored|
+    ignored.summary = params[:summary].to_s.strip.presence
+  end
+  Tables::SuggestedCanonicalNetMerge.where(signature:).delete_all
+
+  redirect '/admin/canonical-nets'
+end
+
+delete '/admin/canonical-net-suggestions/:id' do
+  require_admin!
+
+  Tables::IgnoredCanonicalNetSuggestion.find(params[:id]).destroy!
+  redirect '/admin/canonical-nets'
 end
 
 get '/admin/nets/:id' do
@@ -2426,19 +2613,29 @@ end
 
 def set_closed_net_details
   @closed_net = Tables::ClosedNet.includes(:club).find(params[:id])
-  @name = @closed_net&.name
+  @canonical_net = @closed_net.canonical_net
+  @name = @canonical_net&.canonical_name || @closed_net&.name
   @checkin_count = @closed_net.checkin_count
   @message_count = @closed_net.message_count
   @monitor_count = @closed_net.monitor_count
   @net_count = Tables::Net.count
-  @favorited_net = @user.favorite_nets.where(net_name: @closed_net.name).any? if @user
+  @favorited_net = @user.favorite_nets.where(canonical_net_id: @canonical_net&.id).any? if @user
 
-  @more_recent_closed_net = Tables::ClosedNet.where(name: @closed_net.name).where('started_at > ?', @closed_net.started_at).order(started_at: :desc).first
-  @open_net = Tables::Net.find_by(name: @closed_net.name)
+  @more_recent_closed_net = if @canonical_net
+                              @canonical_net.closed_nets.where('started_at > ?', @closed_net.started_at).order(started_at: :desc).first
+                            else
+                              Tables::ClosedNet.where(name: @closed_net.name).where('started_at > ?', @closed_net.started_at).order(started_at: :desc).first
+                            end
+  @older_closed_net = if @canonical_net
+                        @canonical_net.closed_nets.where('started_at < ?', @closed_net.started_at).order(started_at: :desc).first
+                      else
+                        Tables::ClosedNet.where(name: @closed_net.name).where('started_at < ?', @closed_net.started_at).order(started_at: :desc).first
+                      end
+  @open_net = @canonical_net&.representative_active_net || Tables::Net.find_by(name: @closed_net.name)
 end
 
 FavoriteDetail = Struct.new(:call_sign, :first_name, :last_name, :station, :monitoring, keyword_init: true)
-FavoriteNetDetail = Struct.new(:net_name, :active_net, :last_closed_at, keyword_init: true)
+FavoriteNetDetail = Struct.new(:canonical_net, :active_net, :last_closed_at, keyword_init: true)
 
 def set_favorites
   favorites = @user.favorites.order(:call_sign).to_a
@@ -2454,16 +2651,19 @@ def set_favorites
     )
   end
 
-  favorite_net_names = @user.favorite_nets.map(&:net_name)
-  active_nets = Tables::Net.where(name: favorite_net_names).index_by(&:name)
-  recent_closed_ats = Tables::ClosedNet.where(name: favorite_net_names)
-                                       .group(:name)
+  favorite_nets = @user.favorite_nets.includes(:canonical_net).order(:net_name).to_a
+  canonical_net_ids = favorite_nets.map(&:canonical_net_id).compact
+  active_nets = Tables::Net.where(canonical_net_id: canonical_net_ids).group_by(&:canonical_net_id)
+  recent_closed_ats = Tables::ClosedNet.where(canonical_net_id: canonical_net_ids)
+                                       .group(:canonical_net_id)
                                        .maximum(:started_at)
-  @favorite_net_details = @user.favorite_nets.order(:net_name).map do |favorite_net|
+  @favorite_net_details = favorite_nets.filter_map do |favorite_net|
+    next unless favorite_net.canonical_net
+
     FavoriteNetDetail.new(
-      net_name: favorite_net.net_name,
-      active_net: active_nets[favorite_net.net_name],
-      last_closed_at: recent_closed_ats[favorite_net.net_name],
+      canonical_net: favorite_net.canonical_net,
+      active_net: favorite_net.canonical_net.representative_active_net || active_nets[favorite_net.canonical_net_id]&.max_by(&:started_at),
+      last_closed_at: recent_closed_ats[favorite_net.canonical_net_id],
     )
   end
 end

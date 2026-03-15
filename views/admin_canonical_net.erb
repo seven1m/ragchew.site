@@ -1,0 +1,57 @@
+<h1><%== @canonical_net.canonical_name %></h1>
+
+<p>
+  <a href="/admin/canonical-nets">back to canonical nets</a> |
+  <a href="<%== canonical_net_path(@canonical_net) %>">view public canonical page</a>
+</p>
+
+<p>
+  Active nets: <%= @canonical_net.nets.count %> |
+  Closed nets: <%= @canonical_net.closed_nets.count %> |
+  Favorites: <%= @canonical_net.favorite_count %>
+</p>
+
+<h2>Aliases</h2>
+
+<div class="table-wrapper">
+  <table>
+    <thead>
+      <tr>
+        <th>Name</th>
+        <th>Active</th>
+        <th>Closed</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      <% @alias_details.each do |alias_detail| %>
+        <tr>
+          <td><%== alias_detail[:name] %></td>
+          <td><%= alias_detail[:active_count] %></td>
+          <td><%= alias_detail[:closed_count] %></td>
+          <td>
+            <% if alias_detail[:canonical_name] %>
+              <em>primary canonical name</em>
+            <% else %>
+              <form action="/admin/canonical-nets/<%== @canonical_net.id %>/remove-alias" method="post" class="inline" onsubmit="if (!confirm('Split this alias into its own canonical name?')) return false">
+                <input type="hidden" name="alias_name" value="<%== make_value_safe_for_html_attribute(alias_detail[:name]) %>"/>
+                <button>Remove Alias</button>
+              </form>
+            <% end %>
+          </td>
+        </tr>
+      <% end %>
+    </tbody>
+  </table>
+</div>
+
+<p><em>To split out the primary canonical name itself, first rename this canonical group to another name, then remove the old name as an alias.</em></p>
+
+<% if @canonical_net.favorite_count > 0 %>
+  <p><em>This canonical net cannot be deleted because it still has <%= @canonical_net.favorite_count %> favorite<%= @canonical_net.favorite_count == 1 ? '' : 's' %>.</em></p>
+<% else %>
+  <form action="/admin/canonical-nets/<%== @canonical_net.id %>" method="post" onsubmit="if (!confirm('Delete this canonical net? Aliases will be split into their own canonical nets.')) return false">
+    <input type="hidden" name="_method" value="delete"/>
+    <button>Delete Canonical Net</button>
+  </form>
+<% end %>

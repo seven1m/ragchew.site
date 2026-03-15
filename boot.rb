@@ -39,6 +39,7 @@ ActiveRecord::Base.logger = Logger.new($stderr) if ENV['DEBUG_SQL']
 
 require_relative './lib/associate_club_with_nets'
 require_relative './lib/associate_net_with_club'
+require_relative './lib/canonical_net_resolver'
 require_relative './lib/extensions'
 require_relative './lib/echolink'
 require_relative './lib/fetcher'

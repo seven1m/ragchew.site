@@ -9,6 +9,10 @@ Dir['./lib/migrations/*.rb'].to_a.each do |file|
   require file
 end
 
+Dir['./lib/tasks/**/*.rake'].to_a.each do |file|
+  load file
+end
+
 template = eval(Erubi::Engine.new(File.read('config/database.yaml')).src)
 db_config = YAML.safe_load(template)
 env = ENV['RACK_ENV'] || 'development'
