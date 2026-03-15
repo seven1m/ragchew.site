@@ -429,6 +429,12 @@ class Net extends Component {
             ${" "} ${this.props.net.name}
           </h1>
 
+          ${this.props.net.ragchew_only_testing_net &&
+          html`<div class="info-callout">
+            This net is for testing purposes only. It does not sync changes to
+            NetLogger.org
+          </div>`}
+
           ${this.renderNetControls()} ${this.renderNetDetails()}
         </div>
 

@@ -1273,6 +1273,20 @@ post '/api/auth/login' do
     return { error: 'call_sign and password are required' }.to_json
   end
 
+  if APPLE_REVIEW_DEMO_ENABLED && call_sign.upcase == APPLE_REVIEW_DEMO_CALL_SIGN
+    if password == APPLE_REVIEW_DEMO_PASSWORD
+      user = Tables::User.find_or_create_by!(call_sign: APPLE_REVIEW_DEMO_CALL_SIGN) do |u|
+        u.first_name = 'Review'
+        u.last_name  = 'Demo'
+      end
+      user.update!(last_signed_in_at: Time.now)
+      api_token = Tables::ApiToken.generate_for(user)
+      return { token: api_token.raw_token, user: user }.to_json
+    else
+      return { error: "wrong password" }.to_json
+    end
+  end
+
   begin
     qrz = Qrz.login(username: call_sign, password: password)
     result = qrz.lookup(call_sign)

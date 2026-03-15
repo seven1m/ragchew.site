@@ -6,6 +6,7 @@ ENV['REDIS_DB'] ||= '15'
 ENV['SESSION_SECRET'] ||= 'test-session-secret-test-session-secret-test-session-secret-test-session-secret'
 ENV['TEST_DATABASE_URL'] ||= 'mysql://netlogger:netlogger@localhost/netlogger_test'
 ENV['DATABASE_URL'] = ENV['TEST_DATABASE_URL']
+ENV['APPLE_REVIEW_DEMO_PASSWORD'] = 'test'
 
 require 'rack/test'
 require 'webmock/rspec'

@@ -115,6 +115,7 @@ task :cleanup do
     next unless (user = net.logging_users.first)
 
     last_activity = [net.checkins.maximum(:updated_at), net.messages.maximum(:created_at), net.created_at].compact.max
+    next if net.name == 'RagChew App Testing Review Net'
     if last_activity < MAX_IDLE_NET.ago
       net_info = NetInfo.new(id: net.id)
       logger_class = Backend.for_net(net)
@@ -168,6 +169,24 @@ task :stats do
   range = week_start..(week_start + 1.week)
   puts "Building weekly stats for #{range.begin.strftime('%Y-%m-%d')} - #{range.end.strftime('%Y-%m-%d')}"
   build_stats(range, 'week', week_start)
+end
+
+desc 'Create app review testing net'
+task :create_app_review_testing_net do
+  Tables::Net.find_or_create_by!(name: APPLE_REVIEW_DEMO_NET_NAME) do |net|
+    net.frequency            = '146.520'
+    net.mode                 = 'FM'
+    net.band                 = '2m'
+    net.net_control          = APPLE_REVIEW_DEMO_CALL_SIGN
+    net.net_logger           = APPLE_REVIEW_DEMO_CALL_SIGN
+    net.started_at           = Time.now
+    net.im_enabled           = true
+    net.update_interval      = 30000
+    net.subscribers          = 0
+    net.host                 = 'ragchew.site'
+    net.created_by_ragchew   = true
+    net.ragchew_only_testing_net = true
+  end
 end
 
 RSpec::Core::RakeTask.new(:spec) if defined?(RSpec::Core::RakeTask)

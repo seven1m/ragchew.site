@@ -56,3 +56,9 @@ if redis_uri.path.nil? || redis_uri.path.empty? || redis_uri.path == '/'
   redis_uri.path = "/#{ENV.fetch('REDIS_DB', '1')}"
 end
 REDIS = Redis.new(url: redis_uri.to_s)
+
+# Set APPLE_REVIEW_DEMO_ENABLED = false after review is approved
+APPLE_REVIEW_DEMO_ENABLED  = ENV['APPLE_REVIEW_DEMO_ENABLED'] == 'true'
+APPLE_REVIEW_DEMO_CALL_SIGN = 'REVIEWDEMO'
+APPLE_REVIEW_DEMO_PASSWORD = ENV.fetch('APPLE_REVIEW_DEMO_PASSWORD')
+APPLE_REVIEW_DEMO_NET_NAME = 'RagChew App Testing Review Net'
