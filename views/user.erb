@@ -87,6 +87,29 @@
   <input type="submit" value="Block" />
 </form>
 
+<h2>Logged In Devices</h2>
+
+<% if @api_tokens.any? %>
+  <ul>
+    <% @api_tokens.each do |api_token| %>
+      <li>
+        <%== api_token.platform %>
+        <% if api_token.last_used_at %>
+          last used <%= format_time(api_token.last_used_at) %>
+        <% else %>
+          last used never
+        <% end %>
+        <form class="inline" action="/user/api_tokens/<%= api_token.id %>" method="post" onclick="if (!confirm('Log out this device?')) return false">
+          <input type="hidden" name="_method" value="delete" />
+          <button>Log out device</button>
+        </form>
+      </li>
+    <% end %>
+  </ul>
+<% else %>
+  <p><em>This is where we would show other logged in sessions from the mobile app, but you have none.</em></p>
+<% end %>
+
 <h2>Danger Zone</h2>
 
 <p>

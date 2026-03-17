@@ -1078,9 +1078,20 @@ get '/user' do
 
   @my_clubs = @user.clubs.order_by_name
   @blocked_stations = @user.blocked_stations.order(:call_sign)
+  @api_tokens = @user.api_tokens.order(last_used_at: :desc, created_at: :desc)
 
   @page_title = 'User Profile and Settings'
   erb :user
+end
+
+delete '/user/api_tokens/:id' do
+  require_user!
+
+  api_token = @user.api_tokens.find_by(id: params[:id])
+  halt 404, 'not found' unless api_token
+
+  api_token.destroy!
+  redirect '/user'
 end
 
 get '/user/delete' do
@@ -1278,10 +1289,11 @@ post '/api/auth/login' do
 
   call_sign = body['call_sign'].to_s.strip
   password = body['password'].to_s
+  platform = body['platform'].to_s.strip
 
-  if call_sign.empty? || password.empty?
+  if call_sign.empty? || password.empty? || platform.empty?
     status 400
-    return { error: 'call_sign and password are required' }.to_json
+    return { error: 'call_sign, password, and platform are required' }.to_json
   end
 
   if APPLE_REVIEW_DEMO_ENABLED && call_sign.upcase == APPLE_REVIEW_DEMO_CALL_SIGN
@@ -1292,7 +1304,7 @@ post '/api/auth/login' do
         return { error: 'user not found' }.to_json
       end
       user.update!(last_signed_in_at: Time.now)
-      api_token = Tables::ApiToken.generate_for(user)
+      api_token = Tables::ApiToken.generate_for(user, platform:)
       return { token: api_token.raw_token, user: user }.to_json
     else
       return { error: "wrong password" }.to_json
@@ -1311,7 +1323,7 @@ post '/api/auth/login' do
   user.last_signed_in_at = Time.now
   user.update!(result.slice(:call_sign, :first_name, :last_name, :image))
 
-  api_token = Tables::ApiToken.generate_for(user)
+  api_token = Tables::ApiToken.generate_for(user, platform:)
 
   { token: api_token.raw_token, user: user }.to_json
 end

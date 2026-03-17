@@ -7,11 +7,13 @@ module Tables
     MAX_TOKENS_PER_USER = 5
 
     validates :token, presence: true, uniqueness: true
+    validates :platform, presence: true
 
-    def self.generate_for(user)
+    def self.generate_for(user, platform:)
       raw_token = SecureRandom.hex(32)
       api_token = create!(
         user: user,
+        platform: platform,
         token: Digest::SHA256.hexdigest(raw_token),
         expires_at: 365.days.from_now,
       )

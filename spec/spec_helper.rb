@@ -29,7 +29,7 @@ module SpecHelpers
   end
 
   def bearer_token_for(user)
-    Tables::ApiToken.generate_for(user).raw_token
+    Tables::ApiToken.generate_for(user, platform: 'test').raw_token
   end
 
   def auth_headers_for(user)
