@@ -15,7 +15,7 @@ RSpec.describe 'test user netlogger guard' do
     Tables::Server.delete_all
   end
 
-  def create_test_user(call_sign: 'REVIEWDEMO')
+  def create_test_user(call_sign: 'X0REV')
     user = create_user(call_sign:, first_name: 'Review', last_name: 'Demo')
     user.test_user = true
     user.save!
@@ -84,7 +84,7 @@ RSpec.describe 'test user netlogger guard' do
         name: 'Should Not Open',
         password: 'secret',
         frequency: '146.52',
-        net_control: 'REVIEWDEMO',
+        net_control: 'X0REV',
         user:,
         mode: 'FM',
         band: '2m',
