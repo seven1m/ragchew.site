@@ -1219,19 +1219,30 @@ end
 post '/login' do
   params[:net] = CGI.unescape(params[:net]) if params[:net]
 
-  qrz = Qrz.login(
-    username: params[:call_sign],
-    password: params[:password],
-  )
-  result = qrz.lookup(params[:call_sign])
+  if APPLE_REVIEW_DEMO_ENABLED && params[:call_sign].to_s.strip.upcase == APPLE_REVIEW_DEMO_CALL_SIGN
+    raise Qrz::Error, 'wrong password' unless params[:password] == APPLE_REVIEW_DEMO_PASSWORD
 
-  @user = Tables::User.find_or_initialize_by(call_sign: result[:call_sign])
-  @user.last_signed_in_at = Time.now
-  @user.update!(result.slice(:call_sign, :first_name, :last_name, :image))
+    @user = Tables::User.find_by(call_sign: APPLE_REVIEW_DEMO_CALL_SIGN)
+    raise Qrz::Error, 'user not found' unless @user
+
+    @user.update!(last_signed_in_at: Time.now)
+    qrz_session = nil
+  else
+    qrz = Qrz.login(
+      username: params[:call_sign],
+      password: params[:password],
+    )
+    result = qrz.lookup(params[:call_sign])
+
+    @user = Tables::User.find_or_initialize_by(call_sign: result[:call_sign])
+    @user.last_signed_in_at = Time.now
+    @user.update!(result.slice(:call_sign, :first_name, :last_name, :image))
+    qrz_session = qrz.session
+  end
 
   session.clear
   session[:user_id] = @user.id
-  session[:qrz_session] = qrz.session
+  session[:qrz_session] = qrz_session
 
   redirect params[:net] ? "/net/#{url_escape params[:net]}" : '/'
 rescue Qrz::Error => e
@@ -1275,9 +1286,10 @@ post '/api/auth/login' do
 
   if APPLE_REVIEW_DEMO_ENABLED && call_sign.upcase == APPLE_REVIEW_DEMO_CALL_SIGN
     if password == APPLE_REVIEW_DEMO_PASSWORD
-      user = Tables::User.find_or_create_by!(call_sign: APPLE_REVIEW_DEMO_CALL_SIGN) do |u|
-        u.first_name = 'Review'
-        u.last_name  = 'Demo'
+      user = Tables::User.find_by(call_sign: APPLE_REVIEW_DEMO_CALL_SIGN)
+      unless user
+        status 401
+        return { error: 'user not found' }.to_json
       end
       user.update!(last_signed_in_at: Time.now)
       api_token = Tables::ApiToken.generate_for(user)

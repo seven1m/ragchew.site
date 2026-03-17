@@ -189,4 +189,13 @@ task :create_app_review_testing_net do
   end
 end
 
+desc 'Create app review testing user'
+task :create_app_review_testing_user do
+  user = Tables::User.find_or_initialize_by(call_sign: APPLE_REVIEW_DEMO_CALL_SIGN)
+  user.first_name = 'Review'
+  user.last_name  = 'Demo'
+  user.test_user  = true
+  user.save!
+end
+
 RSpec::Core::RakeTask.new(:spec) if defined?(RSpec::Core::RakeTask)

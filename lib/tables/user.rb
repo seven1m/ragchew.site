@@ -7,6 +7,7 @@ module Tables
     bit_flag :admin, 0
     bit_flag :net_logger, 1
     bit_flag :net_creation_blocked, 2
+    bit_flag :test_user, 3
 
     def net_logger?
       true
