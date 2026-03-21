@@ -1405,6 +1405,8 @@ get '/admin' do
   @suggested_clubs = Tables::SuggestedClub.order(created_at: :desc)
 
   @recent_reactions = Tables::ClosedNet.where('started_at >= ?', 7.days.ago).sum(:message_reaction_count)
+  @review_user = ReviewDemo.user
+  @review_net = ReviewDemo.net
 
   erb :admin
 end
@@ -2177,6 +2179,20 @@ post '/admin/unblock_net' do
 
   Tables::BlockedNet.where(name: CGI.unescape(params[:name])).delete_all
   redirect '/admin#blocked-nets'
+end
+
+post '/admin/review/recreate-net' do
+  require_admin!
+
+  ReviewDemo.recreate_net!
+  redirect '/admin#review'
+end
+
+post '/admin/review/delete-net' do
+  require_admin!
+
+  ReviewDemo.delete_net!
+  redirect '/admin#review'
 end
 
 post '/admin/remove_closed_net_from_club' do

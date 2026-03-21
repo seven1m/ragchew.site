@@ -173,69 +173,12 @@ end
 
 desc 'Create app review testing net'
 task :create_app_review_testing_net do
-  net = Tables::Net.find_or_create_by!(name: APPLE_REVIEW_DEMO_NET_NAME) do |net|
-    net.frequency            = '146.520'
-    net.mode                 = 'FM'
-    net.band                 = '2m'
-    net.net_control          = APPLE_REVIEW_DEMO_CALL_SIGN
-    net.net_logger           = APPLE_REVIEW_DEMO_CALL_SIGN
-    net.started_at           = Time.now
-    net.im_enabled           = true
-    net.update_interval      = 30000
-    net.subscribers          = 0
-    net.host                 = 'ragchew.site'
-    net.created_by_ragchew   = true
-    net.ragchew_only_testing_net = true
-  end
-
-  qrz = QrzAutoSession.new
-  review_checkins = [
-    { num: 1, call_sign: 'KI5ZDF', remarks: 'NCO' },
-    { num: 2, call_sign: 'KI5ZDG', remarks: nil },
-  ]
-
-  review_checkins.each do |seed|
-    station = qrz.lookup(seed[:call_sign])
-    latitude, longitude = GridSquare.new(station[:grid_square]).to_a
-
-    net.checkins.find_or_initialize_by(num: seed[:num]).update!(
-      call_sign: station[:call_sign],
-      name: [station[:first_name], station[:last_name]].compact.join(' '),
-      preferred_name: station[:first_name],
-      remarks: seed[:remarks],
-      checked_in_at: Time.now,
-      grid_square: station[:grid_square],
-      street: station[:street],
-      city: station[:city],
-      state: station[:state],
-      zip: station[:zip],
-      county: station[:county],
-      country: station[:country],
-      dxcc: station[:dxcc],
-      latitude:,
-      longitude:,
-    )
-  end
-
-  ki5zdf = qrz.lookup('KI5ZDF')
-  net.monitors.find_or_initialize_by(call_sign: ki5zdf[:call_sign]).update!(
-    num: 0,
-    name: ki5zdf[:first_name],
-    version: UserPresenter::NET_LOGGER_FAKE_VERSION,
-    status: 'Online',
-    blocked: false,
-  )
-
-  net.update!(checkin_count: net.checkins.not_blank.count)
+  ReviewDemo.recreate_net!
 end
 
 desc 'Create app review testing user'
 task :create_app_review_testing_user do
-  user = Tables::User.find_or_initialize_by(call_sign: APPLE_REVIEW_DEMO_CALL_SIGN)
-  user.first_name = 'Review'
-  user.last_name  = 'Demo'
-  user.test_user  = true
-  user.save!
+  ReviewDemo.create_user!
 end
 
 RSpec::Core::RakeTask.new(:spec) if defined?(RSpec::Core::RakeTask)

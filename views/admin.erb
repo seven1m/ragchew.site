@@ -243,3 +243,25 @@ document.addEventListener("DOMContentLoaded", () => {
 </form>
 
 <p>You can use <code>/regex/</code> syntax for the name. All regexps are case insensitive.</p>
+
+<h2 id="review">Review</h2>
+
+<p>App review demo user: <% if @review_user %><a href="/admin/users/<%= @review_user.id %>"><%== @review_user.call_sign %></a><% else %><em>missing</em><% end %></p>
+
+<p>App review testing net:
+  <% if @review_net %>
+    <a href="/net/<%= url_escape @review_net.name %>"><%== @review_net.name %></a>
+    with <%= @review_net.checkin_count %> check-ins
+  <% else %>
+    <em>missing</em>
+  <% end %>
+</p>
+
+<form class="inline" action="/admin/review/recreate-net" method="post" onsubmit="if (!confirm('Delete the current review testing net and recreate it?')) return false">
+  <button>Recreate review testing net</button>
+</form>
+
+<form class="inline" action="/admin/review/delete-net" method="post" onsubmit="if (!confirm('Delete the review testing net?')) return false">
+  <button>Delete review testing net</button>
+</form>
+
