@@ -29,6 +29,7 @@
         <% @columns.each do |column| %>
           <th><%== column.name %></p>
         <% end %>
+        <th></th>
       </tr>
     </thead>
     <tbody>
@@ -49,6 +50,17 @@
               <% end %>
             </td>
           <% end %>
+          <td>
+            <form class="inline" action="/admin/table/<%== params[:table] %>/<%== record.id %>/edit" method="get">
+              <input type="hidden" name="return_to" value="<%== make_value_safe_for_html_attribute(request.fullpath) %>"/>
+              <button>Edit</button>
+            </form>
+            <form class="inline" action="/admin/table/<%== params[:table] %>/<%== record.id %>" method="post" onsubmit="if (!confirm('Delete this record?')) return false">
+              <input type="hidden" name="_method" value="delete"/>
+              <input type="hidden" name="return_to" value="<%== make_value_safe_for_html_attribute(request.fullpath) %>"/>
+              <button>Delete</button>
+            </form>
+          </td>
         </tr>
       <% end %>
     </tbody>

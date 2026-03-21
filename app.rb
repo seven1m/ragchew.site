@@ -285,6 +285,25 @@ helpers do
     end
     "<a href=\"?#{query}&sort=#{column} #{direction}\">#{label}</a> #{arrow}"
   end
+
+  def admin_table_klass(table_name)
+    Tables.const_get(table_name.classify)
+  rescue NameError
+    halt 404, 'table not found'
+  end
+
+  def admin_table_attributes_from_params(klass, raw_attributes)
+    columns = klass.columns.index_by(&:name)
+
+    raw_attributes.to_h.each_with_object({}) do |(name, raw_value), attrs|
+      next unless columns.key?(name)
+
+      column = columns[name]
+      value = raw_value
+      value = nil if value == '' && ![:string, :text].include?(column.type)
+      attrs[name] = klass.type_for_attribute(name).cast(value)
+    end
+  end
 end
 
 include DOTIW::Methods
@@ -1766,7 +1785,7 @@ get '/admin/table/:table' do
   require_admin!
 
   per_page = 100
-  klass = Tables.const_get(params[:table].classify)
+  klass = admin_table_klass(params[:table])
   scope = klass.order(:id)
   scope = scope.where('id > ?', params[:after]) if params[:after]
   if params[:column].present? && params[:value].present?
@@ -1796,6 +1815,48 @@ get '/admin/table/:table' do
   @columns = klass.columns
 
   erb :admin_table
+end
+
+get '/admin/table/:table/:id/edit' do
+  require_admin!
+
+  @klass = admin_table_klass(params[:table])
+  @record = @klass.find(params[:id])
+  @columns = @klass.columns
+  @return_to = params[:return_to].presence || "/admin/table/#{params[:table]}"
+  @form_values = @record.attributes.transform_values { |value| value.nil? ? '' : value.to_s }
+
+  erb :admin_table_edit
+end
+
+patch '/admin/table/:table/:id' do
+  require_admin!
+
+  @klass = admin_table_klass(params[:table])
+  @record = @klass.find(params[:id])
+  @columns = @klass.columns
+  @return_to = params[:return_to].presence || "/admin/table/#{params[:table]}/#{@record.id}/edit"
+  @form_values = params.fetch('record', {}).to_h
+
+  begin
+    @record.assign_attributes(admin_table_attributes_from_params(@klass, @form_values))
+    @record.save!
+    redirect @return_to
+  rescue ActiveRecord::ActiveRecordError => e
+    @error_message = e.message
+    status 422
+    erb :admin_table_edit
+  end
+end
+
+delete '/admin/table/:table/:id' do
+  require_admin!
+
+  klass = admin_table_klass(params[:table])
+  record = klass.find(params[:id])
+  record.destroy!
+
+  redirect params[:return_to].presence || "/admin/table/#{params[:table]}"
 end
 
 get '/admin/suggested-clubs' do

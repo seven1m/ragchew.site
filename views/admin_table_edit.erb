@@ -1,0 +1,37 @@
+<h1>Edit <%== params[:table] %> #<%== @record.id %></h1>
+
+<p><a href="<%== make_url_safe_for_html_attribute(@return_to) %>">back</a></p>
+
+<% if @error_message %>
+  <p class="error-callout"><%== @error_message %></p>
+<% end %>
+
+<form action="/admin/table/<%== params[:table] %>/<%== @record.id %>" method="post" class="wide">
+  <input type="hidden" name="_method" value="patch"/>
+  <input type="hidden" name="return_to" value="<%== make_value_safe_for_html_attribute(@return_to) %>"/>
+
+  <% @columns.each do |column| %>
+    <% value = @form_values.fetch(column.name, '') %>
+    <label>
+      <strong><%== column.name %></strong>
+      <small class="discreet">(<%== column.type %>)</small><br/>
+      <% if column.type == :boolean %>
+        <select name="record[<%== column.name %>]">
+          <option value="" <%= value == '' ? 'selected' : '' %>></option>
+          <option value="true" <%= value.to_s == 'true' ? 'selected' : '' %>>true</option>
+          <option value="false" <%= value.to_s == 'false' ? 'selected' : '' %>>false</option>
+        </select>
+      <% elsif column.type == :text %>
+        <textarea name="record[<%== column.name %>]" rows="5"><%= Rack::Utils.escape_html(value) %></textarea>
+      <% else %>
+        <input
+          type="<%= [:integer, :float, :decimal].include?(column.type) ? 'number' : 'text' %>"
+          <% if [:float, :decimal].include?(column.type) %>step="any"<% end %>
+          name="record[<%== column.name %>]"
+          value="<%= Rack::Utils.escape_html(value) %>"/>
+      <% end %>
+    </label>
+  <% end %>
+
+  <input type="submit" value="Save"/>
+</form>
