@@ -120,6 +120,11 @@ document.addEventListener("DOMContentLoaded", () => {
     </thead>
     <tbody>
       <tr>
+        <td><a href="/admin/table/api_tokens">api tokens</a></td>
+        <td><%= Tables::ApiToken.count %></td>
+        <td><%= format_time Tables::ApiToken.maximum(:created_at) %></td>
+      </tr>
+      <tr>
         <td><a href="/admin/table/checkins">checkins</a></td>
         <td><%= Tables::Checkin.count %></td>
         <td><%= format_time Tables::Checkin.maximum(:created_at) %></td>
@@ -143,6 +148,11 @@ document.addEventListener("DOMContentLoaded", () => {
         <td><a href="/admin/table/club_stations">club stations</a></td>
         <td><%= Tables::ClubStation.count %></td>
         <td><%= format_time Tables::ClubStation.maximum(:updated_at) %></td>
+      </tr>
+      <tr>
+        <td><a href="/admin/table/devices">devices</a></td>
+        <td><%= Tables::Device.count %></td>
+        <td><%= format_time Tables::Device.maximum(:updated_at) %></td>
       </tr>
       <tr>
         <td><a href="/admin/table/favorites">favorites</a></td>
@@ -264,4 +274,3 @@ document.addEventListener("DOMContentLoaded", () => {
 <form class="inline" action="/admin/review/delete-net" method="post" onsubmit="if (!confirm('Delete the review testing net?')) return false">
   <button>Delete review testing net</button>
 </form>
-
