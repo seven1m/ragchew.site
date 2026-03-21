@@ -20,6 +20,21 @@ h1, h2, h3, h4, h5, h6 {
   color: #888;
 }
 
+.app-home-link {
+  background: linear-gradient(180deg, #1d2a35, #18232d);
+  border-color: #385168;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.22);
+}
+
+.app-home-link-icon {
+  color: #9fc1df;
+}
+
+.app-home-link-icon rect:last-child,
+.app-home-link-icon circle {
+  fill: #18232d;
+}
+
 .disclaimer {
   color: #888;
 }

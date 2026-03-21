@@ -1,4 +1,4 @@
-<h1>
+<h1 class="home-title">
   <% if @theme == 'dark' %>
     <img src="/images/logo-dark.svg" style="height:30px;"/>
   <% elsif @theme == 'system' %>
@@ -13,6 +13,16 @@
 <p>
   Easily find and follow your favorite amateur radio (ham) nets, in the browser and on mobile.
   <a href="/about" class="no-wrap-on-mobile">What is this?</a>
+  <a href="https://ragchew.app" class="app-home-link">
+    <span class="app-home-link-icon" aria-hidden="true">
+      <svg viewBox="0 0 24 24" role="presentation" focusable="false">
+        <rect x="7" y="2.5" width="10" height="19" rx="2.4"></rect>
+        <rect x="8.8" y="5.2" width="6.4" height="12.2" rx="0.9"></rect>
+        <circle cx="12" cy="19.1" r="0.85"></circle>
+      </svg>
+    </span>
+    We have an app!
+  </a>
 </p>
 
 <div id="net-map"

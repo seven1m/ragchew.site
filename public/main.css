@@ -52,6 +52,10 @@ h1 {
   font-size: clamp(2.25rem, 5vw, 3.6rem);
 }
 
+.home-title {
+  font-size: 2.5rem;
+}
+
 h2 {
   margin-top: 2.75rem;
   padding-bottom: 0.35rem;
@@ -82,6 +86,46 @@ nav a { white-space: nowrap; }
 .single-login-user { color: #888; }
 
 .index-map-explanation { color: #999; font-size: smaller; font-style: italic; }
+
+.app-home-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  margin-left: 0.45rem;
+  padding: 0.28rem 0.7rem;
+  border: 1px solid #c7d2dd;
+  border-radius: 999px;
+  background: linear-gradient(180deg, #f8fbfd, #eef4f8);
+  color: #45657f;
+  font-size: 0.92rem;
+  font-weight: 700;
+  line-height: 1;
+  text-decoration: none;
+  vertical-align: baseline;
+  box-shadow: 0 8px 20px rgba(24, 33, 43, 0.06);
+}
+
+.app-home-link-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.app-home-link-icon svg {
+  display: block;
+  width: 1.3rem;
+  height: 1.3rem;
+}
+
+.app-home-link-icon rect:first-child {
+  fill: currentColor;
+}
+
+.app-home-link-icon rect:last-child,
+.app-home-link-icon circle {
+  fill: #f8fbfd;
+}
 
 .disclaimer { margin-top: 50px; font-size: smaller; color: #999; }
 .disclaimer a, .disclaimer a:visited { color: #999; }
