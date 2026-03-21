@@ -120,4 +120,47 @@ RSpec.describe 'LocalLogger' do
     expect(net.reload.monitors.find_by(call_sign: 'KI5ABC')).to be_nil
     expect(user.reload.monitoring_net_id).to be_nil
   end
+
+  it 'stores echolink from the starting frequency and preserves it when closing' do
+    user = create_user(call_sign: 'KI5ZDF', first_name: 'TIM R', last_name: 'MORGAN')
+    user.admin = true
+    user.save!
+    headers = auth_headers_for(user)
+
+    post '/api/create-net', {
+      club_id: 'no_club',
+      net_name: 'Local EchoLink Net',
+      net_password: 'ecg',
+      frequency: 'EchoLink 1002775',
+      band: '2m',
+      mode: 'FM',
+      net_control: 'KI5ZDF',
+      ragchew_only_testing_net: true,
+      blocked_stations: []
+    }.to_json, headers.merge('CONTENT_TYPE' => 'application/json')
+
+    expect(last_response.status).to eq(302)
+
+    net = Tables::Net.find_by!(name: 'Local EchoLink Net')
+    expect(net.echolink).to eq(
+      'node' => '1002775',
+      'source' => 'frequency'
+    )
+
+    get "/api/net/#{net.id}/details", {}, headers
+    expect(last_response.status).to eq(200)
+    expect(JSON.parse(last_response.body).dig('net', 'echolink')).to eq(
+      'node' => '1002775',
+      'source' => 'frequency'
+    )
+
+    post "/close-net/#{net.id}", {}, headers
+    expect(last_response.status).to eq(302)
+
+    closed_net = Tables::ClosedNet.find_by!(name: 'Local EchoLink Net')
+    expect(closed_net.echolink).to eq(
+      'node' => '1002775',
+      'source' => 'frequency'
+    )
+  end
 end

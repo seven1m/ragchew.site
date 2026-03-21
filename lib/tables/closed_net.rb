@@ -24,6 +24,7 @@ module Tables
           'center_longitude',
           'center_radius',
           'club_id',
+          'echolink',
           'created_by_ragchew',
           'ragchew_only_testing_net',
         )

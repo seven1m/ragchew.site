@@ -93,9 +93,11 @@ class NetList
     # update existing and create new
     data.each do |net_info|
       if (net = cached.delete(net_info[:name]))
+        net_info[:echolink] = Echolink.parse_frequency(net_info[:frequency]) if net.echolink.blank?
         net.update!(net_info)
       else
         net = Tables::Net.new(net_info)
+        net.echolink = Echolink.parse_frequency(net.frequency)
         AssociateNetWithClub.new(net).call
         net.save!
       end

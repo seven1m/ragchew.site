@@ -13,6 +13,7 @@ class NetInfo
   FAVORITE_CALL_SIGNS_CACHE_KEY = 'fav_callsigns'
   FAVORITE_CALL_SIGNS_CACHE_TTL = 60 * 60
   FAVORITE_CALL_SIGNS_CACHE_EMPTY_SENTINEL = '__EMPTY__'
+  MESSAGES_COUNT_TO_PARSE_FOR_ECHOLINK = 5
 
   class NotFoundError < StandardError; end
   class ServerError < StandardError; end
@@ -279,6 +280,8 @@ class NetInfo
   def update_net_info(info)
     update_center
     @record.fully_updated_at = Time.now
+    parsed_echolink = Echolink.parse_frequency(info[:frequency])
+    info[:echolink] = parsed_echolink if parsed_echolink.present?
     @record.update!(info)
   end
 
@@ -453,7 +456,7 @@ class NetInfo
 
     blocked_stations = @record.monitors.blocked.pluck(:call_sign).map(&:upcase)
 
-    records = @record.messages.all
+    records = @record.messages.to_a
     messages.each do |message|
       begin
         if (existing = records.detect { |r| r.log_id == message[:log_id] })
@@ -461,7 +464,7 @@ class NetInfo
           changes += 1 if existing.previous_changes.any?
         else
           message[:blocked] = blocked_stations.include?(message[:call_sign].upcase)
-          @record.messages.create!(message)
+          records << @record.messages.create!(message)
           changes += 1
         end
       rescue ActiveRecord::StatementInvalid => error
@@ -469,10 +472,25 @@ class NetInfo
       end
     end
 
+    # FIXME: there is race here: we sometimes delete temporary messages if the netlogger
+    # fetch was in-flight and doesn't have the new message record.
     temporary_messages_to_cleanup = records.select { |r| r.log_id.nil? }
     temporary_messages_to_cleanup.each(&:destroy)
 
+    maybe_set_echolink_from_messages!(records)
+
     changes
+  end
+
+  def maybe_set_echolink_from_messages!(messages)
+    return if @record.echolink.present?
+
+    echolink = messages
+                 .sort_by(&:sent_at)
+                 .first(MESSAGES_COUNT_TO_PARSE_FOR_ECHOLINK)
+                 .filter_map { |message| Echolink.parse_message(message.message) }
+                 .first
+    @record.update!(echolink:) if echolink
   end
 
   def cache_needs_updating?

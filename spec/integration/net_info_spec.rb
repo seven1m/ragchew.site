@@ -130,4 +130,138 @@ RSpec.describe 'NetInfo' do
     expect(Tables::Message.where(net_id: net.id).pluck(:message)).to include('hello world')
     expect(Tables::Checkin.where(net_id: net.id).pluck(:call_sign)).to include('KI5ZDF')
   end
+
+  it 'prefers frequency echolink info over chat and returns it from net details' do
+    server = Tables::Server.create!(
+      name: 'NETLOGGER',
+      host: 'www.netlogger.org',
+      state: 'Public',
+      is_public: true,
+      net_list_fetched_at: Time.now,
+      updated_at: Time.now
+    )
+    net = Tables::Net.create!(
+      server: server,
+      host: server.host,
+      name: 'EchoLink Priority Net',
+      frequency: '146.52',
+      mode: 'FM',
+      band: '2m',
+      net_control: 'KI5ZDF',
+      net_logger: 'KI5ZDF-TIM R - v3.1.7L',
+      im_enabled: true,
+      update_interval: 20_000,
+      started_at: Time.now
+    )
+
+    user = create_user(call_sign: 'KI5ZDF', first_name: 'TIM R', last_name: 'MORGAN')
+    user.update!(monitoring_net: net)
+    headers = auth_headers_for(user)
+
+    stub_request(:get, %r{#{Regexp.escape(base_url)}/GetUpdates3\.php})
+      .with { |request| CGI.parse(URI(request.uri.to_s).query.to_s)['NetName'] == ['EchoLink Priority Net'] }
+      .to_return(
+        status: 200,
+        body: netlogger_html('<!--NetLogger Start Data-->1|KI5ZDF|Tulsa|OK|Tim R Morgan| | |2026-03-05 02:24:49|Tulsa|EM26aa|10727 Riverside Pkwy|74137| | |United States|291|Tim|~`0|future use 2|future use 3|<!--NetLogger End Data--><!-- NetMonitors Start -->KI5ZDF-TIM R - v3.1.7L|12.70.239.138|~<!-- NetMonitors End --><!-- IM Start -->1001|KI5ZDF-TIM R|N|EchoLink K1ABC-R|20260305022457|12.70.239.138|~<!-- IM End --><!-- Ext Data Start --><!-- Ext Data End --><!-- Net Info Start -->Date=2026-03-05 02:24:39|NetName=EchoLink Priority Net|Frequency=EchoLink 1002775|Logger=KI5ZDF-TIM R - v3.1.7L|NetControl=KI5ZDF|Mode=FM|Band=2m|AIM=Y|UpdateInterval=20000|AltNetName=EchoLink Priority Net|InactivityTimer=30|MiscNetParameters=|<!-- Net Info End -->')
+      )
+
+    get "/api/net/#{net.id}/details", {}, headers
+    expect(last_response.status).to eq(200)
+
+    expect(net.reload.echolink).to eq(
+      'node' => '1002775',
+      'source' => 'frequency'
+    )
+    expect(JSON.parse(last_response.body).dig('net', 'echolink')).to eq(
+      'node' => '1002775',
+      'source' => 'frequency'
+    )
+  end
+
+  it 'detects echolink from only the first five chat messages when frequency has none' do
+    server = Tables::Server.create!(
+      name: 'NETLOGGER',
+      host: 'www.netlogger.org',
+      state: 'Public',
+      is_public: true,
+      net_list_fetched_at: Time.now,
+      updated_at: Time.now
+    )
+    net = Tables::Net.create!(
+      server: server,
+      host: server.host,
+      name: 'EchoLink Message Net',
+      frequency: '146.52',
+      mode: 'FM',
+      band: '2m',
+      net_control: 'KI5ZDF',
+      net_logger: 'KI5ZDF-TIM R - v3.1.7L',
+      im_enabled: true,
+      update_interval: 20_000,
+      started_at: Time.now
+    )
+
+    user = create_user(call_sign: 'KI5ZDF', first_name: 'TIM R', last_name: 'MORGAN')
+    user.update!(monitoring_net: net)
+    headers = auth_headers_for(user)
+
+    stub_request(:get, %r{#{Regexp.escape(base_url)}/GetUpdates3\.php})
+      .with { |request| CGI.parse(URI(request.uri.to_s).query.to_s)['NetName'] == ['EchoLink Message Net'] }
+      .to_return(
+        status: 200,
+        body: netlogger_html('<!--NetLogger Start Data-->1|KI5ZDF|Tulsa|OK|Tim R Morgan| | |2026-03-05 02:24:49|Tulsa|EM26aa|10727 Riverside Pkwy|74137| | |United States|291|Tim|~`0|future use 2|future use 3|<!--NetLogger End Data--><!-- NetMonitors Start -->KI5ZDF-TIM R - v3.1.7L|12.70.239.138|~<!-- NetMonitors End --><!-- IM Start -->1001|KI5AAA-TEST|N|hello everyone|20260305022451|12.70.239.138|~1002|KI5AAA-TEST|N|meeting id 123456|20260305022452|12.70.239.138|~1003|KI5AAA-TEST|N|please connect echolink 1002775|20260305022453|12.70.239.138|~1004|KI5AAA-TEST|N|random note|20260305022454|12.70.239.138|~1005|KI5AAA-TEST|N|monitor echolink KD0EAV-R|20260305022455|12.70.239.138|~1006|KI5AAA-TEST|N|echolink 9999|20260305022456|12.70.239.138|~<!-- IM End --><!-- Ext Data Start --><!-- Ext Data End --><!-- Net Info Start -->Date=2026-03-05 02:24:39|NetName=EchoLink Message Net|Frequency=146.52|Logger=KI5ZDF-TIM R - v3.1.7L|NetControl=KI5ZDF|Mode=FM|Band=2m|AIM=Y|UpdateInterval=20000|AltNetName=EchoLink Message Net|InactivityTimer=30|MiscNetParameters=|<!-- Net Info End -->')
+      )
+
+    get "/api/net/#{net.id}/details", {}, headers
+    expect(last_response.status).to eq(200)
+
+    expect(net.reload.echolink).to eq(
+      'node' => '1002775',
+      'source' => 'message'
+    )
+    expect(JSON.parse(last_response.body).dig('net', 'echolink')).to eq(
+      'node' => '1002775',
+      'source' => 'message'
+    )
+  end
+
+  it 'does not detect a station from chat without echolink context' do
+    server = Tables::Server.create!(
+      name: 'NETLOGGER',
+      host: 'www.netlogger.org',
+      state: 'Public',
+      is_public: true,
+      net_list_fetched_at: Time.now,
+      updated_at: Time.now
+    )
+    net = Tables::Net.create!(
+      server: server,
+      host: server.host,
+      name: 'EchoLink Strict Message Net',
+      frequency: '146.52',
+      mode: 'FM',
+      band: '2m',
+      net_control: 'KI5ZDF',
+      net_logger: 'KI5ZDF-TIM R - v3.1.7L',
+      im_enabled: true,
+      update_interval: 20_000,
+      started_at: Time.now
+    )
+
+    user = create_user(call_sign: 'KI5ZDF', first_name: 'TIM R', last_name: 'MORGAN')
+    user.update!(monitoring_net: net)
+    headers = auth_headers_for(user)
+
+    stub_request(:get, %r{#{Regexp.escape(base_url)}/GetUpdates3\.php})
+      .with { |request| CGI.parse(URI(request.uri.to_s).query.to_s)['NetName'] == ['EchoLink Strict Message Net'] }
+      .to_return(
+        status: 200,
+        body: netlogger_html('<!--NetLogger Start Data-->1|KI5ZDF|Tulsa|OK|Tim R Morgan| | |2026-03-05 02:24:49|Tulsa|EM26aa|10727 Riverside Pkwy|74137| | |United States|291|Tim|~`0|future use 2|future use 3|<!--NetLogger End Data--><!-- NetMonitors Start -->KI5ZDF-TIM R - v3.1.7L|12.70.239.138|~<!-- NetMonitors End --><!-- IM Start -->1001|KI5AAA-TEST|N|monitor KD0EAV-R|20260305022451|12.70.239.138|~<!-- IM End --><!-- Ext Data Start --><!-- Ext Data End --><!-- Net Info Start -->Date=2026-03-05 02:24:39|NetName=EchoLink Strict Message Net|Frequency=146.52|Logger=KI5ZDF-TIM R - v3.1.7L|NetControl=KI5ZDF|Mode=FM|Band=2m|AIM=Y|UpdateInterval=20000|AltNetName=EchoLink Strict Message Net|InactivityTimer=30|MiscNetParameters=|<!-- Net Info End -->')
+      )
+
+    get "/api/net/#{net.id}/details", {}, headers
+    expect(last_response.status).to eq(200)
+    expect(net.reload.echolink).to be_nil
+    expect(JSON.parse(last_response.body).dig('net', 'echolink')).to be_nil
+  end
 end

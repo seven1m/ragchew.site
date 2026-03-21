@@ -92,6 +92,7 @@ module Backend
       net = Tables::Net.create!(
         name:,
         frequency:,
+        echolink: Echolink.parse_frequency(frequency),
         mode:,
         net_control:,
         net_logger: UserPresenter.new(user).name_for_logging,
