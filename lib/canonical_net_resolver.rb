@@ -26,8 +26,8 @@ class CanonicalNetResolver
       normalize_name(name).gsub(/[^a-z0-9]+/, '')
     end
 
-    def ensure_for_name!(name)
-      Tables::CanonicalNet.find_or_create_for_name!(name)
+    def ensure_for_name!(name, club_id: nil)
+      Tables::CanonicalNet.find_or_create_for_name!(name, club_id:)
     end
 
     def resolve(name)

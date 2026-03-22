@@ -1,6 +1,10 @@
 # frozen_string_literal: true
 
 require 'spec_helper'
+require 'rake'
+
+extend Rake::DSL
+load File.expand_path('../../lib/tasks/canonical_nets.rake', __dir__)
 
 RSpec.describe 'canonical nets' do
   def session_env_for(user)
@@ -18,10 +22,11 @@ RSpec.describe 'canonical nets' do
     )
   end
 
-  def create_active_net(server:, canonical_net:, name:)
+  def create_active_net(server:, canonical_net:, name:, club: nil)
     Tables::Net.create!(
       server:,
       canonical_net:,
+      club:,
       host: server.host,
       name:,
       frequency: '146.52',
@@ -35,9 +40,10 @@ RSpec.describe 'canonical nets' do
     )
   end
 
-  def create_closed_net(canonical_net:, name:, started_at:)
+  def create_closed_net(canonical_net:, name:, started_at:, club: nil)
     Tables::ClosedNet.create!(
       canonical_net:,
+      club:,
       name:,
       frequency: '146.52',
       mode: 'FM',
@@ -58,10 +64,56 @@ RSpec.describe 'canonical nets' do
     Tables::ClosedNet.delete_all
     Tables::Net.delete_all
     Tables::CanonicalNet.delete_all
+    Tables::Club.delete_all
     Tables::SuggestedCanonicalNetMerge.delete_all
     Tables::IgnoredCanonicalNetSuggestion.delete_all
     Tables::Server.delete_all
     Tables::User.delete_all
+  end
+
+  it 'backfills missing canonical net clubs from active and closed nets' do
+    club = Tables::Club.create!(name: 'Metro Club')
+    active_canonical = Tables::CanonicalNet.create!(canonical_name: 'Metro Weather Net')
+    closed_canonical = Tables::CanonicalNet.create!(canonical_name: 'Metro Traffic Net')
+    server = create_server
+    Tables::Net.create!(
+      server:,
+      canonical_net: active_canonical,
+      club:,
+      host: server.host,
+      name: 'Metro Weather Net',
+      frequency: '146.52',
+      mode: 'FM',
+      band: '2m',
+      net_control: 'KI5ZDF',
+      net_logger: 'KI5ZDF-TIM R - v3.1.7L',
+      im_enabled: true,
+      update_interval: 20_000,
+      started_at: Time.now
+    )
+    create_closed_net(canonical_net: closed_canonical, name: 'Metro Traffic Net', started_at: 1.day.ago).update!(club:)
+
+    Rake::Task['canonical_nets:backfill'].reenable
+    Rake::Task['canonical_nets:backfill'].invoke
+
+    expect(active_canonical.reload.club_id).to eq(club.id)
+    expect(closed_canonical.reload.club_id).to eq(club.id)
+  end
+
+  it 'renders canonical nets only on the club page and links by canonical name' do
+    club = Tables::Club.create!(name: 'Metro Club', about_url: 'https://example.org')
+    first = Tables::CanonicalNet.create!(canonical_name: 'Metro Weather Net', club:)
+    second = Tables::CanonicalNet.create!(canonical_name: 'Metro Traffic Net', club:)
+    create_closed_net(canonical_net: first, name: 'Metro WX', started_at: 1.day.ago, club:)
+    create_closed_net(canonical_net: second, name: 'Metro Traffic', started_at: 2.days.ago, club:)
+
+    get "/group/#{CGI.escape(club.name)}"
+
+    expect(last_response.status).to eq(200)
+    expect(last_response.body).to include('/net/Metro+Weather+Net')
+    expect(last_response.body).to include('/net/Metro+Traffic+Net')
+    expect(last_response.body).not_to include('Metro WX')
+    expect(last_response.body).not_to include('/net/Metro+Traffic"')
   end
 
   it 'renders the public canonical page with the canonical title and alias label' do

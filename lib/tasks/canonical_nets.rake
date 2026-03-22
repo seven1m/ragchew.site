@@ -4,11 +4,13 @@ namespace :canonical_nets do
     net_scope = Tables::Net.where(canonical_net_id: nil)
     closed_net_scope = Tables::ClosedNet.where(canonical_net_id: nil)
     favorite_net_scope = Tables::FavoriteNet.where(canonical_net_id: nil)
+    canonical_net_scope = Tables::CanonicalNet.where(club_id: nil)
 
     puts "Starting canonical net backfill"
     puts "  nets missing: #{net_scope.count}"
     puts "  closed nets missing: #{closed_net_scope.count}"
     puts "  favorite nets missing: #{favorite_net_scope.count}"
+    puts "  canonical nets missing club: #{canonical_net_scope.count}"
 
     names = (
       net_scope.pluck(:name) +
@@ -42,10 +44,17 @@ namespace :canonical_nets do
       end
     end
 
+    backfill_scope('canonical net clubs', canonical_net_scope) do |canonical_net|
+      club_id = canonical_net.nets.where.not(club_id: nil).pick(:club_id) ||
+                canonical_net.closed_nets.where.not(club_id: nil).pick(:club_id)
+      canonical_net.update_columns(club_id:) if club_id
+    end
+
     puts "Backfill complete"
     puts "  nets missing: #{Tables::Net.where(canonical_net_id: nil).count}"
     puts "  closed nets missing: #{Tables::ClosedNet.where(canonical_net_id: nil).count}"
     puts "  favorite nets missing: #{Tables::FavoriteNet.where(canonical_net_id: nil).count}"
+    puts "  canonical nets missing club: #{Tables::CanonicalNet.where(club_id: nil).count}"
   end
 
   desc 'Rebuild cached canonical net merge suggestions'

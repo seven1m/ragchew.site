@@ -1,5 +1,6 @@
 module Tables
   class Club < ActiveRecord::Base
+    has_many :canonical_nets, dependent: :nullify
     has_many :nets, dependent: :nullify
     has_many :closed_nets, dependent: :nullify
     has_many :club_stations, dependent: :delete_all

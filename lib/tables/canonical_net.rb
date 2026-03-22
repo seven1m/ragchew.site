@@ -1,5 +1,6 @@
 module Tables
   class CanonicalNet < ActiveRecord::Base
+    belongs_to :club, optional: true
     has_many :nets, dependent: :nullify
     has_many :closed_nets, dependent: :nullify
     has_many :favorite_nets, dependent: :delete_all
@@ -8,11 +9,11 @@ module Tables
 
     before_validation :normalize_fields
 
-    def self.find_or_create_for_name!(name)
+    def self.find_or_create_for_name!(name, club_id: nil)
       cleaned_name = name.to_s.strip
       raise ActiveRecord::RecordInvalid, new if cleaned_name.empty?
 
-      find_by(canonical_name: cleaned_name) || create!(canonical_name: cleaned_name)
+      find_by(canonical_name: cleaned_name) || create!(canonical_name: cleaned_name, club_id:)
     end
 
     def all_names
@@ -48,8 +49,10 @@ module Tables
     def merge!(other_groups:, canonical_name:)
       other_groups = Array(other_groups).compact.reject { |group| group.id == id }
       new_name = canonical_name.to_s.strip.presence || self.canonical_name
+      merged_club_id = club_id || other_groups.map(&:club_id).compact.first
 
       transaction do
+        self.club_id = merged_club_id if merged_club_id
         update!(canonical_name: new_name)
 
         unless other_groups.empty?
@@ -79,7 +82,7 @@ module Tables
       raise ArgumentError, 'cannot split the canonical name directly' if alias_name == canonical_name
 
       transaction do
-        new_canonical = self.class.find_or_create_for_name!(alias_name)
+        new_canonical = self.class.find_or_create_for_name!(alias_name, club_id:)
         Tables::Net.where(canonical_net_id: id, name: alias_name).update_all(canonical_net_id: new_canonical.id)
         Tables::ClosedNet.where(canonical_net_id: id, name: alias_name).update_all(canonical_net_id: new_canonical.id)
         new_canonical
@@ -98,7 +101,7 @@ module Tables
         end
 
         raw_names.each do |name|
-          new_canonical = self.class.find_or_create_for_name!(name)
+          new_canonical = self.class.find_or_create_for_name!(name, club_id:)
           Tables::Net.where(canonical_net_id: source_id, name: name).update_all(canonical_net_id: new_canonical.id)
           Tables::ClosedNet.where(canonical_net_id: source_id, name: name).update_all(canonical_net_id: new_canonical.id)
         end

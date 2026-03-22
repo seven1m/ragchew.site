@@ -2388,10 +2388,7 @@ get '/group/:slug' do
 
   @page_title = @club.name
 
-  @net_names = (
-    @club.nets.order(:name).pluck(:name) +
-    @club.closed_nets.order(:name, :started_at).pluck(:name)
-  ).sort.uniq(&:downcase)
+  @canonical_nets = @club.canonical_nets.order(:canonical_name).to_a
 
   erb :club
 rescue ActiveRecord::RecordNotFound

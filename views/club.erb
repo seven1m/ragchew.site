@@ -24,13 +24,13 @@
   <% end %>
 <% end %>
 
-<% if @net_names.any? %>
+<% if @canonical_nets.any? %>
   <h2>Nets</h2>
 
   <ul>
-    <% @net_names.each do |name| %>
+    <% @canonical_nets.each do |canonical_net| %>
       <li>
-        <a href="/net/<%== url_escape(name) %>"><%== name %></a>
+        <a href="/net/<%== url_escape(canonical_net.canonical_name) %>"><%== canonical_net.canonical_name %></a>
       </li>
     <% end %>
   </ul>

@@ -14,10 +14,11 @@ RSpec.describe Tables::CanonicalNet do
     )
   end
 
-  def create_active_net(server:, canonical_net:, name:)
+  def create_active_net(server:, canonical_net:, name:, club: nil)
     Tables::Net.create!(
       server:,
       canonical_net:,
+      club:,
       host: server.host,
       name:,
       frequency: '146.52',
@@ -31,9 +32,10 @@ RSpec.describe Tables::CanonicalNet do
     )
   end
 
-  def create_closed_net(canonical_net:, name:, started_at:)
+  def create_closed_net(canonical_net:, name:, started_at:, club: nil)
     Tables::ClosedNet.create!(
       canonical_net:,
+      club:,
       name:,
       frequency: '146.52',
       mode: 'FM',
@@ -54,16 +56,40 @@ RSpec.describe Tables::CanonicalNet do
     Tables::ClosedNet.delete_all
     Tables::Net.delete_all
     Tables::CanonicalNet.delete_all
+    Tables::Club.delete_all
     Tables::Server.delete_all
     Tables::User.delete_all
   end
 
+  it 'copies the club to a newly created canonical net from an active net' do
+    server = create_server
+    club = Tables::Club.create!(name: 'Metro Club')
+
+    net = Tables::Net.create!(
+      server:,
+      club:,
+      host: server.host,
+      name: 'Metro Weather Net',
+      frequency: '146.52',
+      mode: 'FM',
+      band: '2m',
+      net_control: 'KI5ZDF',
+      net_logger: 'KI5ZDF-TIM R - v3.1.7L',
+      im_enabled: true,
+      update_interval: 20_000,
+      started_at: Time.now
+    )
+
+    expect(net.canonical_net.club_id).to eq(club.id)
+  end
+
   it 'merges other groups and deduplicates favorites per user' do
     server = create_server
+    club = Tables::Club.create!(name: 'Traffic Club')
     target = Tables::CanonicalNet.create!(canonical_name: 'Morning Traffic Net')
-    source = Tables::CanonicalNet.create!(canonical_name: 'Morning Traffic Net Alt')
-    create_active_net(server:, canonical_net: source, name: 'Morning Traffic Net Alt')
-    closed_net = create_closed_net(canonical_net: source, name: 'Morning Traffic Net Alt', started_at: 1.day.ago)
+    source = Tables::CanonicalNet.create!(canonical_name: 'Morning Traffic Net Alt', club:)
+    create_active_net(server:, canonical_net: source, name: 'Morning Traffic Net Alt', club:)
+    closed_net = create_closed_net(canonical_net: source, name: 'Morning Traffic Net Alt', started_at: 1.day.ago, club:)
     same_user = create_user(call_sign: 'K1AAA')
     other_user = create_user(call_sign: 'K1BBB')
     Tables::FavoriteNet.create!(user: same_user, canonical_net: target)
@@ -80,6 +106,18 @@ RSpec.describe Tables::CanonicalNet do
     expect(Tables::FavoriteNet.exists?(duplicate.id)).to eq(false)
     expect(migrated.reload.canonical_net_id).to eq(target.id)
     expect(migrated.reload.net_name).to eq('Merged Morning Net')
+    expect(target.reload.club_id).to eq(club.id)
+  end
+
+  it 'keeps the existing club when merging into a canonical net that already has one' do
+    first_club = Tables::Club.create!(name: 'First Club')
+    second_club = Tables::Club.create!(name: 'Second Club')
+    target = Tables::CanonicalNet.create!(canonical_name: 'Target Net', club: first_club)
+    source = Tables::CanonicalNet.create!(canonical_name: 'Source Net', club: second_club)
+
+    target.merge!(other_groups: [source], canonical_name: 'Target Net')
+
+    expect(target.reload.club_id).to eq(first_club.id)
   end
 
   it 'reuses a merged canonical net when a previously seen alias name appears again' do
