@@ -45,7 +45,7 @@ module Tables
     def assign_canonical_net
       return unless name.present?
 
-      self.canonical_net ||= CanonicalNetResolver.ensure_for_name!(name)
+      self.canonical_net ||= CanonicalNetResolver.resolve(name) || CanonicalNetResolver.ensure_for_name!(name)
     end
   end
 end
