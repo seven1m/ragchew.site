@@ -17,6 +17,16 @@ document.addEventListener("DOMContentLoaded", () => {
 })
 </script>
 
+<% if @suggested_canonical_net_merge_count.positive? %>
+  <h2>Suggested Canonical Net Merges</h2>
+
+  <p>
+    <a href="/admin/canonical-nets">
+      <%= @suggested_canonical_net_merge_count %> suggested canonical net <%= pluralize 'merge', @suggested_canonical_net_merge_count %> pending review
+    </a>
+  </p>
+<% end %>
+
 <h2>Ragchew Nets</h2>
 
 <p>Nets created by this tool in the last 7 days:</p>

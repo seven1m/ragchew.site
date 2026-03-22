@@ -1491,6 +1491,7 @@ get '/admin' do
                            .order(created_at: :desc)
   @user_count_last_30_days = Tables::User.where('last_signed_in_at > ?', Time.now - (30 * 24 * 60 * 60)).count
   @suggested_clubs = Tables::SuggestedClub.order(created_at: :desc)
+  @suggested_canonical_net_merge_count = CanonicalNetResolver.suggestion_count
 
   @recent_reactions = Tables::ClosedNet.where('started_at >= ?', 7.days.ago).sum(:message_reaction_count)
   @review_user = ReviewDemo.user

@@ -111,6 +111,12 @@ class CanonicalNetResolver
       end.first(limit)
     end
 
+    def suggestion_count
+      Tables::SuggestedCanonicalNetMerge.order(:band, :frequency, :normalized_name, :id).count do |row|
+        row.canonical_nets.size >= 2
+      end
+    end
+
     def rebuild_cached_suggestions!(limit: 10_000, progress: nil)
       suggestions = computed_suggestions(limit:)
       progress&.call("Rebuilding canonical net suggestions: #{suggestions.size} suggestion(s)")
