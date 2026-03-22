@@ -67,10 +67,13 @@
   </script>
 <% end %>
 
-<% if is_admin? && params[:id] %>
+<% if is_admin? %>
   <div class="admin-only">
     Admin only: You are viewing a closed net from the archive.
     <a href="/admin/closed-nets?name=<%== url_escape(@closed_net.name) %>">name search</a> |
+    <% if @canonical_net %>
+      <a href="/admin/canonical-nets?name=<%== url_escape(@canonical_net.canonical_name) %>">canonical admin page</a> |
+    <% end %>
     <a href="<%== @canonical_net ? canonical_net_path(@canonical_net) : "/net/#{url_escape(@closed_net.name)}" %>">net page</a>
     &nbsp;
     <% if @closed_net.club %>

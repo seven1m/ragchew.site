@@ -4,4 +4,10 @@
     <input name="reason" placeholder="reason"/>
     <input type="submit" value="Block net"/>
   </form>
+
+  <% if @canonical_net %>
+    <p>
+      <a href="/admin/canonical-nets?name=<%== url_escape(@canonical_net.canonical_name) %>">view canonical admin page</a>
+    </p>
+  <% end %>
 <% end %>

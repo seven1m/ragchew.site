@@ -1798,8 +1798,12 @@ get '/admin/canonical-nets' do
 
   scope = Tables::CanonicalNet.order(:canonical_name)
   if params[:name].present?
-    like = "%#{params[:name].gsub(/%/, '\%')}%"
-    scope = scope.where('canonical_name like ?', like)
+    terms = params[:name].split('|').map(&:strip).reject(&:empty?).uniq
+    like_terms = terms.map { |term| "%#{term.gsub(/[\\%_]/) { |char| "\\#{char}" }}%" }
+    if like_terms.any?
+      conditions = Array.new(like_terms.size, 'canonical_name like ?').join(' OR ')
+      scope = scope.where(conditions, *like_terms)
+    end
   end
 
   @canonical_nets_total_count = scope.count

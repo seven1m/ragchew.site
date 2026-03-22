@@ -1,11 +1,12 @@
 <h1>Canonical Nets</h1>
 
 <form action="/admin/canonical-nets">
-  <input type="text" name="name" value="<%== make_value_safe_for_html_attribute(params[:name]) %>" placeholder="search canonical name"/>
+  <input type="text" name="name" value="<%== make_value_safe_for_html_attribute(params[:name]) %>" placeholder="search canonical name" size="50"/>
   <button>search</button>
   <% if params[:name].present? %>
     <a href="/admin/canonical-nets">clear</a>
   <% end %>
+  <span style="color:#666">Use <code>|</code> for OR</span>
 </form>
 
 <form action="/admin/canonical-nets/rebuild-suggestions" method="post" class="inline">
