@@ -3,6 +3,7 @@
 ENV['RACK_ENV'] = 'test'
 ENV['REDIS_URL'] ||= 'redis://127.0.0.1:6379'
 ENV['REDIS_DB'] ||= '15'
+ENV['PUSHER_URL'] ||= 'http://test:test@127.0.0.1/apps/1'
 ENV['SESSION_SECRET'] ||= 'test-session-secret-test-session-secret-test-session-secret-test-session-secret'
 ENV['APPLE_REVIEW_DEMO_PASSWORD'] = 'test'
 

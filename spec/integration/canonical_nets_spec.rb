@@ -128,6 +128,47 @@ RSpec.describe 'canonical nets' do
     expect(last_response.body).to include('Logged as Metro WX')
   end
 
+  it 'supports OR search terms on the canonical admin page' do
+    admin = create_user(call_sign: 'K1ADMIN')
+    admin.update!(admin: true)
+    Tables::CanonicalNet.create!(canonical_name: 'SATERDAY NIGHT 2M SIMPLEX NET')
+    Tables::CanonicalNet.create!(canonical_name: 'Saturday Night 2m Simplex Net')
+    Tables::CanonicalNet.create!(canonical_name: 'Unrelated Net')
+
+    get '/admin/canonical-nets', { name: 'SATERDAY NIGHT 2M SIMPLEX NET|Saturday Night 2m' }, session_env_for(admin)
+
+    expect(last_response.status).to eq(200)
+    expect(last_response.body).to include('SATERDAY NIGHT 2M SIMPLEX NET')
+    expect(last_response.body).to include('Saturday Night 2m Simplex Net')
+    expect(last_response.body).not_to include('Unrelated Net')
+  end
+
+  it 'shows the canonical admin link on closed net pages for admins' do
+    admin = create_user(call_sign: 'K1ADMIN')
+    admin.update!(admin: true)
+    canonical_net = Tables::CanonicalNet.create!(canonical_name: 'Saturday Night 2M Simplex Net')
+    closed_net = create_closed_net(canonical_net:, name: 'SATERDAY NIGHT 2M SIMPLEX NET', started_at: 1.day.ago)
+
+    get "/closed-net/#{closed_net.id}", {}, session_env_for(admin)
+
+    expect(last_response.status).to eq(200)
+    expect(last_response.body).to include("/admin/canonical-nets?name=#{CGI.escape(canonical_net.canonical_name)}")
+    expect(last_response.body).to include('canonical admin page')
+  end
+
+  it 'shows the canonical admin link on name-based closed net pages for admins' do
+    admin = create_user(call_sign: 'K1ADMIN')
+    admin.update!(admin: true)
+    canonical_net = Tables::CanonicalNet.create!(canonical_name: 'Saturday Night 2M Simplex Net')
+    create_closed_net(canonical_net:, name: 'SATERDAY NIGHT 2M SIMPLEX NET', started_at: 1.day.ago)
+
+    get "/net/#{CGI.escape('SATERDAY NIGHT 2M SIMPLEX NET')}", {}, session_env_for(admin)
+
+    expect(last_response.status).to eq(200)
+    expect(last_response.body).to include("/admin/canonical-nets?name=#{CGI.escape(canonical_net.canonical_name)}")
+    expect(last_response.body).to include('canonical admin page')
+  end
+
   it 'returns closed canonical net metadata from api/net_id for an alias' do
     canonical_net = Tables::CanonicalNet.create!(canonical_name: 'Metro Weather Net')
     closed_net = create_closed_net(canonical_net:, name: 'Metro WX', started_at: 1.day.ago)
