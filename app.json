@@ -18,6 +18,10 @@
       "schedule": "9 0 * * *"
     },
     {
+      "command": "bundle exec rake canonical_nets:build_suggestions",
+      "schedule": "15 0 * * *"
+    },
+    {
       "command": "bundle exec rake stats",
       "schedule": "0 0 * * *"
     }
