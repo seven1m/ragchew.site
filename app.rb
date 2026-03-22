@@ -1838,14 +1838,16 @@ post '/admin/canonical-nets/merge' do
   require_admin!
 
   canonical_net_ids = Array(params[:canonical_net_ids]).map(&:to_i).uniq
+  desired_name = params[:canonical_name].to_s.strip
+  existing_target = desired_name.present? ? Tables::CanonicalNet.find_by(canonical_name: desired_name) : nil
+  canonical_net_ids |= [existing_target.id] if existing_target
   halt 400, 'select at least two canonical net names' if canonical_net_ids.size < 2
 
   canonical_nets = Tables::CanonicalNet.where(id: canonical_net_ids).order(:id).to_a
   halt 404, 'canonical net not found' if canonical_nets.size != canonical_net_ids.size
 
-  desired_name = params[:canonical_name].to_s.strip
   target = if desired_name.present?
-             canonical_nets.find { |canonical_net| canonical_net.canonical_name == desired_name } || canonical_nets.first
+             existing_target || canonical_nets.find { |canonical_net| canonical_net.canonical_name == desired_name } || canonical_nets.first
            else
              canonical_nets.first
            end

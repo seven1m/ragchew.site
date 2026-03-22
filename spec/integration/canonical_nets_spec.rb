@@ -126,4 +126,21 @@ RSpec.describe 'canonical nets' do
     expect(favorite.reload.canonical_net_id).to eq(target.id)
     expect(favorite.reload.net_name).to eq('Merged Metro Net')
   end
+
+  it 'merges into an existing canonical net when the requested canonical name already exists' do
+    admin = create_user(call_sign: 'K1ADMIN')
+    admin.update!(admin: true)
+    existing_target = Tables::CanonicalNet.create!(canonical_name: 'YL SYSTEM 17 METER SESSION')
+    first = Tables::CanonicalNet.create!(canonical_name: 'YL SYS 17M SESSION')
+    second = Tables::CanonicalNet.create!(canonical_name: 'YL System 17 Meter Sess')
+
+    post '/admin/canonical-nets/merge',
+         { canonical_net_ids: [first.id, second.id], canonical_name: existing_target.canonical_name },
+         session_env_for(admin)
+
+    expect(last_response.status).to eq(302)
+    expect(Tables::CanonicalNet.exists?(first.id)).to eq(false)
+    expect(Tables::CanonicalNet.exists?(second.id)).to eq(false)
+    expect(Tables::CanonicalNet.exists?(existing_target.id)).to eq(true)
+  end
 end
