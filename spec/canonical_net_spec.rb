@@ -82,6 +82,32 @@ RSpec.describe Tables::CanonicalNet do
     expect(migrated.reload.net_name).to eq('Merged Morning Net')
   end
 
+  it 'reuses a merged canonical net when a previously seen alias name appears again' do
+    server = create_server
+    target = Tables::CanonicalNet.create!(canonical_name: 'RCWA Boredom Breaker Net (w AllStar)')
+    source = Tables::CanonicalNet.create!(canonical_name: 'RCWA Bordem Breaker ( w allstar)')
+    create_closed_net(canonical_net: source, name: 'RCWA Bordem Breaker ( w allstar)', started_at: 1.day.ago)
+
+    target.merge!(other_groups: [source], canonical_name: target.canonical_name)
+
+    recreated = Tables::Net.create!(
+      server:,
+      host: server.host,
+      name: 'RCWA Bordem Breaker ( w allstar)',
+      frequency: '146.52',
+      mode: 'FM',
+      band: '2m',
+      net_control: 'KI5ZDF',
+      net_logger: 'KI5ZDF-TIM R - v3.1.7L',
+      im_enabled: true,
+      update_interval: 20_000,
+      started_at: Time.now
+    )
+
+    expect(recreated.canonical_net_id).to eq(target.id)
+    expect(Tables::CanonicalNet.where(canonical_name: 'RCWA Bordem Breaker ( w allstar)').count).to eq(0)
+  end
+
   it 'splits an alias into its own canonical net' do
     server = create_server
     canonical_net = Tables::CanonicalNet.create!(canonical_name: 'Metro Weather Net')
