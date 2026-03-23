@@ -143,6 +143,40 @@ RSpec.describe 'canonical nets' do
     expect(last_response.body).not_to include('Unrelated Net')
   end
 
+  it 'returns canonical net search suggestions for the admin detail page' do
+    admin = create_user(call_sign: 'K1ADMIN')
+    admin.update!(admin: true)
+    target = Tables::CanonicalNet.create!(canonical_name: 'Saturday Night 2M Simplex Net')
+    other = Tables::CanonicalNet.create!(canonical_name: 'SATERDAY NIGHT 2M SIMPLEX NET')
+    create_closed_net(canonical_net: other, name: 'SATERDAY NIGHT 2M SIMPLEX NET', started_at: 1.day.ago)
+
+    get '/api/admin/canonical-nets/search', { q: 'SATERDAY', exclude_id: target.id }, session_env_for(admin)
+
+    expect(last_response.status).to eq(200)
+    expect(JSON.parse(last_response.body)).to eq([
+      {
+        'id' => other.id,
+        'canonical_name' => 'SATERDAY NIGHT 2M SIMPLEX NET',
+        'aliases' => [],
+        'active_count' => 0,
+        'closed_count' => 1
+      }
+    ])
+  end
+
+  it 'renders canonical net merge search controls on the admin detail page' do
+    admin = create_user(call_sign: 'K1ADMIN')
+    admin.update!(admin: true)
+    canonical_net = Tables::CanonicalNet.create!(canonical_name: 'Saturday Night 2M Simplex Net')
+
+    get "/admin/canonical-nets/#{canonical_net.id}", {}, session_env_for(admin)
+
+    expect(last_response.status).to eq(200)
+    expect(last_response.body).to include('Search canonical nets:')
+    expect(last_response.body).to include('/api/admin/canonical-nets/search')
+    expect(last_response.body).to include('Merge Into This Canonical Net')
+  end
+
   it 'shows the canonical admin link on closed net pages for admins' do
     admin = create_user(call_sign: 'K1ADMIN')
     admin.update!(admin: true)

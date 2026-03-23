@@ -1838,6 +1838,33 @@ get '/admin/canonical-nets/:id' do
   erb :admin_canonical_net
 end
 
+get '/api/admin/canonical-nets/search' do
+  require_admin!
+  content_type 'application/json'
+
+  query = params[:q].to_s.strip
+  return [].to_json if query.length < 2
+
+  scope = Tables::CanonicalNet.order(:canonical_name)
+  scope = scope.where.not(id: params[:exclude_id].to_i) if params[:exclude_id].present?
+  like = "%#{query.gsub(/[\\%_]/) { |char| "\\#{char}" }}%"
+
+  results = scope.where('canonical_name like ?', like)
+                 .includes(:nets, :closed_nets)
+                 .limit(10)
+                 .map do |canonical_net|
+    {
+      id: canonical_net.id,
+      canonical_name: canonical_net.canonical_name,
+      aliases: canonical_net.all_names - [canonical_net.canonical_name],
+      active_count: canonical_net.nets.count,
+      closed_count: canonical_net.closed_nets.count,
+    }
+  end
+
+  results.to_json
+end
+
 post '/admin/canonical-nets/merge' do
   require_admin!
 

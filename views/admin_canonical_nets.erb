@@ -51,7 +51,7 @@
     </div>
   <% end %>
 <% else %>
-  <p><em>No suggested merges right now.</em></p>
+  <p><em>No suggested merges</em></p>
 <% end %>
 
 <% if @ignored_canonical_net_suggestion_count.positive? %>
@@ -63,12 +63,6 @@
 <p>Showing <%= @canonical_nets.size %> of <%= @canonical_nets_total_count %> canonical names.</p>
 
 <form action="/admin/canonical-nets/merge" method="post">
-  <p>
-    Check one or more rows below to merge visible canonical names:
-    <input type="text" name="canonical_name" id="manual-canonical-name" placeholder="canonical display name" size="40"/>
-    <button>Merge Selected</button>
-  </p>
-
   <div class="table-wrapper">
     <table>
       <thead>
@@ -97,6 +91,12 @@
       </tbody>
     </table>
   </div>
+
+  <p>
+    Check one or more rows above to merge visible canonical names:
+    <input type="text" name="canonical_name" id="manual-canonical-name" placeholder="canonical display name" size="40"/>
+    <button>Merge Selected</button>
+  </p>
 </form>
 
 <p>
