@@ -116,6 +116,50 @@ RSpec.describe 'canonical nets' do
     expect(last_response.body).not_to include('/net/Metro+Traffic"')
   end
 
+  it 'renders canonical nets on the admin club edit page and hides individual alias names' do
+    admin = create_user(call_sign: 'K1ADMIN')
+    admin.update!(admin: true)
+    club = Tables::Club.create!(name: 'Metro Club')
+    canonical_net = Tables::CanonicalNet.create!(canonical_name: 'Metro Weather Net', club:)
+    create_closed_net(canonical_net:, name: 'Metro WX', started_at: 1.day.ago, club:)
+
+    get "/admin/clubs/#{club.id}/edit", {}, session_env_for(admin)
+
+    expect(last_response.status).to eq(200)
+    expect(last_response.body).to include("/admin/canonical-nets/#{canonical_net.id}")
+    expect(last_response.body).to include('Metro Weather Net')
+    expect(last_response.body).not_to include('Metro WX')
+    expect(last_response.body).to include('Add net')
+    expect(last_response.body).to include('/api/admin/canonical-nets/search')
+    expect(last_response.body).to include("[#{canonical_net.id}]")
+  end
+
+  it 'associates an existing canonical net with a club from the admin club edit page' do
+    admin = create_user(call_sign: 'K1ADMIN')
+    admin.update!(admin: true)
+    club = Tables::Club.create!(name: 'Metro Club')
+    canonical_net = Tables::CanonicalNet.create!(canonical_name: 'Metro Weather Net')
+
+    post "/admin/clubs/#{club.id}/canonical-nets", { canonical_net_id: canonical_net.id }, session_env_for(admin)
+
+    expect(last_response.status).to eq(302)
+    expect(last_response.headers['Location']).to eq("http://example.org/admin/clubs/#{club.id}/edit")
+    expect(canonical_net.reload.club_id).to eq(club.id)
+  end
+
+  it 'excludes already-associated canonical nets from admin canonical net search' do
+    admin = create_user(call_sign: 'K1ADMIN')
+    admin.update!(admin: true)
+    excluded = Tables::CanonicalNet.create!(canonical_name: 'Metro Weather Net')
+    included = Tables::CanonicalNet.create!(canonical_name: 'Metro Traffic Net')
+
+    get '/api/admin/canonical-nets/search', { q: 'Metro', exclude_ids: excluded.id.to_s }, session_env_for(admin)
+
+    expect(last_response.status).to eq(200)
+    expect(last_response.body).not_to include('Metro Weather Net')
+    expect(last_response.body).to include('Metro Traffic Net')
+  end
+
   it 'renders the public canonical page with the canonical title and alias label' do
     server = create_server
     canonical_net = Tables::CanonicalNet.create!(canonical_name: 'Metro Weather Net')

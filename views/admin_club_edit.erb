@@ -117,18 +117,117 @@
 
   <h2>Nets</h2>
 
-  <ol>
-    <% @club.nets.order(:name).each do |net| %>
-      <li>
-        <a href="/net/<%== url_escape(net.name) %>"><%== net.name %></a>
-        (open)
-      </li>
-    <% end %>
-    <% @club.closed_nets.order(:name, :started_at).each do |closed_net| %>
-      <li>
-        <a href="/closed-net/<%== closed_net.id %>"><%== closed_net.name %></a>
-        <em><%= format_time(closed_net.started_at) %></em>
-      </li>
-    <% end %>
-  </ol>
+  <a name="nets"></a>
+  <% canonical_nets = @club.canonical_nets.order(:canonical_name) %>
+  <% if canonical_nets.any? %>
+    <ol>
+      <% canonical_nets.each do |canonical_net| %>
+        <li>
+          <a href="/admin/canonical-nets/<%== canonical_net.id %>"><%== canonical_net.canonical_name %></a>
+        </li>
+      <% end %>
+    </ol>
+  <% else %>
+    <p><em>none</em></p>
+  <% end %>
+
+  <div id="club-canonical-net-search" style="position: relative; max-width: 640px;">
+    <p>Associate an existing canonical net with this club.</p>
+    <label>
+      Add net:<br/>
+      <input type="text" id="canonical-net-search" placeholder="Type a canonical net name..." autocomplete="off" style="width: 420px;"/>
+    </label>
+    <div id="canonical-net-search-results" style="display: none; border: 1px solid #ccc; max-height: 240px; overflow-y: auto; background: white; position: absolute; z-index: 1000; width: 420px; box-shadow: 0 2px 5px rgba(0,0,0,0.2);"></div>
+
+    <form action="/admin/clubs/<%== @club.id %>/canonical-nets" method="post" id="canonical-net-add-form" style="margin-top: 12px;">
+      <input type="hidden" name="canonical_net_id" id="selected-canonical-net-id"/>
+      <p id="selected-canonical-net" style="display:none;"></p>
+      <button id="canonical-net-add-submit" disabled>Add net</button>
+    </form>
+  </div>
+
+  <script>
+    (() => {
+      const container = document.getElementById('club-canonical-net-search')
+      if (!container) return
+
+      const input = document.getElementById('canonical-net-search')
+      const resultsDiv = document.getElementById('canonical-net-search-results')
+      const selectedDiv = document.getElementById('selected-canonical-net')
+      const selectedIdInput = document.getElementById('selected-canonical-net-id')
+      const submitButton = document.getElementById('canonical-net-add-submit')
+      const excludedCanonicalNetIds = [<%= canonical_nets.map(&:id).join(',') %>].filter(Boolean)
+      let searchTimeout
+
+      const escapeHtml = (unsafe) => {
+        const div = document.createElement('div')
+        div.textContent = unsafe
+        return div.innerHTML
+      }
+
+      const selectCanonicalNet = (canonicalNet) => {
+        selectedIdInput.value = canonicalNet.id
+        selectedDiv.innerHTML = `Selected: <strong>${escapeHtml(canonicalNet.canonical_name)}</strong>`
+        selectedDiv.style.display = 'block'
+        submitButton.disabled = false
+        input.value = canonicalNet.canonical_name
+        resultsDiv.style.display = 'none'
+      }
+
+      input.addEventListener('input', (event) => {
+        const query = event.target.value.trim()
+        selectedIdInput.value = ''
+        selectedDiv.style.display = 'none'
+        submitButton.disabled = true
+
+        clearTimeout(searchTimeout)
+
+        if (query.length < 2) {
+          resultsDiv.style.display = 'none'
+          return
+        }
+
+        searchTimeout = setTimeout(() => {
+          const searchParams = new URLSearchParams({ q: query })
+          if (excludedCanonicalNetIds.length > 0) {
+            searchParams.set('exclude_ids', excludedCanonicalNetIds.join(','))
+          }
+
+          fetch(`/api/admin/canonical-nets/search?${searchParams.toString()}`)
+            .then(response => response.json())
+            .then(canonicalNets => {
+              if (canonicalNets.length === 0) {
+                resultsDiv.innerHTML = '<div style="padding: 10px; color: #666;">No canonical nets found</div>'
+              } else {
+                resultsDiv.innerHTML = canonicalNets.map(canonicalNet => `
+                  <div
+                    style="padding: 10px; cursor: pointer; border-bottom: 1px solid #eee;"
+                    data-canonical-net='${JSON.stringify(canonicalNet).replace(/'/g, '&#39;')}'
+                    onmouseover="this.style.backgroundColor='#f5f5f5'"
+                    onmouseout="this.style.backgroundColor='white'">
+                    <strong>${escapeHtml(canonicalNet.canonical_name)}</strong>
+                    <br/>
+                    <small>${canonicalNet.active_count} active, ${canonicalNet.closed_count} closed</small>
+                    ${canonicalNet.aliases.length > 0 ? `<br/><small style="color:#666">${escapeHtml(canonicalNet.aliases.join(', '))}</small>` : ''}
+                  </div>
+                `).join('')
+
+                resultsDiv.querySelectorAll('[data-canonical-net]').forEach((elm) => {
+                  elm.addEventListener('click', () => {
+                    selectCanonicalNet(JSON.parse(elm.getAttribute('data-canonical-net')))
+                  })
+                })
+              }
+              resultsDiv.style.display = 'block'
+            })
+        }, 250)
+      })
+
+      document.addEventListener('click', (event) => {
+        if (!event.target.closest('#club-canonical-net-search')) {
+          resultsDiv.style.display = 'none'
+        }
+      })
+    })()
+  </script>
 <% end %>
