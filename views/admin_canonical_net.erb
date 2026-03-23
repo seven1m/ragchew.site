@@ -11,6 +11,24 @@
   Favorites: <%= @canonical_net.favorite_count %>
 </p>
 
+<h2>Merge Another Canonical Net</h2>
+
+<div id="canonical-merge-search" style="position: relative; max-width: 640px;">
+  <p>Search for another canonical net name or alias, then merge it into this one.</p>
+  <label>
+    Search canonical nets:<br/>
+    <input type="text" id="canonical-search" placeholder="Type another canonical net or alias..." autocomplete="off" style="width: 420px;"/>
+  </label>
+  <div id="canonical-search-results" style="display: none; border: 1px solid #ccc; max-height: 240px; overflow-y: auto; background: white; position: absolute; z-index: 1000; width: 420px; box-shadow: 0 2px 5px rgba(0,0,0,0.2);"></div>
+
+  <form action="/admin/canonical-nets/merge" method="post" id="canonical-merge-form" style="margin-top: 12px;">
+    <input type="hidden" name="canonical_net_ids[]" value="<%== @canonical_net.id %>"/>
+    <input type="hidden" name="canonical_net_ids[]" id="selected-canonical-net-id"/>
+    <p id="selected-canonical-net" style="display:none;"></p>
+    <button id="canonical-merge-submit" disabled>Merge Into This Canonical Net</button>
+  </form>
+</div>
+
 <h2>Aliases</h2>
 
 <div class="table-wrapper">
@@ -55,3 +73,84 @@
     <button>Delete Canonical Net</button>
   </form>
 <% end %>
+
+<script>
+  (() => {
+    const container = document.getElementById('canonical-merge-search')
+    if (!container) return
+
+    const searchInput = document.getElementById('canonical-search')
+    const resultsDiv = document.getElementById('canonical-search-results')
+    const selectedIdInput = document.getElementById('selected-canonical-net-id')
+    const selectedText = document.getElementById('selected-canonical-net')
+    const submitButton = document.getElementById('canonical-merge-submit')
+    let searchTimeout
+
+    function escapeHtml(text) {
+      const div = document.createElement('div')
+      div.textContent = text
+      return div.innerHTML
+    }
+
+    function selectCanonicalNet(canonicalNet) {
+      selectedIdInput.value = canonicalNet.id
+      selectedText.innerHTML = `Selected: <strong>${escapeHtml(canonicalNet.canonical_name)}</strong>`
+      if (canonicalNet.aliases.length > 0) {
+        selectedText.innerHTML += ` <span style="color:#666">(${escapeHtml(canonicalNet.aliases.join(', '))})</span>`
+      }
+      selectedText.style.display = 'block'
+      submitButton.disabled = false
+      resultsDiv.style.display = 'none'
+      searchInput.value = canonicalNet.canonical_name
+    }
+
+    searchInput.addEventListener('input', function() {
+      clearTimeout(searchTimeout)
+      selectedIdInput.value = ''
+      selectedText.style.display = 'none'
+      submitButton.disabled = true
+      const query = this.value.trim()
+
+      if (query.length < 2) {
+        resultsDiv.style.display = 'none'
+        return
+      }
+
+      searchTimeout = setTimeout(() => {
+        fetch(`/api/admin/canonical-nets/search?q=${encodeURIComponent(query)}&exclude_id=<%== @canonical_net.id %>`)
+          .then(response => response.json())
+          .then(canonicalNets => {
+            if (canonicalNets.length === 0) {
+              resultsDiv.innerHTML = '<div style="padding: 10px; color: #666;">No canonical nets found</div>'
+            } else {
+              resultsDiv.innerHTML = canonicalNets.map(canonicalNet => `
+                <div
+                  style="padding: 10px; cursor: pointer; border-bottom: 1px solid #eee;"
+                  data-canonical-net='${JSON.stringify(canonicalNet).replace(/'/g, '&#39;')}'
+                  onmouseover="this.style.backgroundColor='#f5f5f5'"
+                  onmouseout="this.style.backgroundColor='white'">
+                  <strong>${escapeHtml(canonicalNet.canonical_name)}</strong>
+                  <br/>
+                  <small>${canonicalNet.active_count} active, ${canonicalNet.closed_count} closed</small>
+                  ${canonicalNet.aliases.length > 0 ? `<br/><small style="color:#666">${escapeHtml(canonicalNet.aliases.join(', '))}</small>` : ''}
+                </div>
+              `).join('')
+
+              resultsDiv.querySelectorAll('[data-canonical-net]').forEach((elm) => {
+                elm.addEventListener('click', () => {
+                  selectCanonicalNet(JSON.parse(elm.getAttribute('data-canonical-net')))
+                })
+              })
+            }
+            resultsDiv.style.display = 'block'
+          })
+      }, 250)
+    })
+
+    document.addEventListener('click', (event) => {
+      if (!event.target.closest('#canonical-merge-search')) {
+        resultsDiv.style.display = 'none'
+      }
+    })
+  })()
+</script>
