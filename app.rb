@@ -1784,6 +1784,19 @@ rescue ActiveRecord::RecordNotFound
   'user not found'
 end
 
+post '/admin/clubs/:id/canonical-nets' do
+  require_admin!
+
+  @club = Tables::Club.find(params[:id])
+  canonical_net = Tables::CanonicalNet.find(params[:canonical_net_id])
+  canonical_net.update!(club: @club)
+
+  redirect "/admin/clubs/#{@club.id}/edit"
+rescue ActiveRecord::RecordNotFound
+  status 404
+  'canonical net not found'
+end
+
 get '/admin/nets' do
   require_admin!
 
@@ -1847,6 +1860,8 @@ get '/api/admin/canonical-nets/search' do
 
   scope = Tables::CanonicalNet.order(:canonical_name)
   scope = scope.where.not(id: params[:exclude_id].to_i) if params[:exclude_id].present?
+  exclude_ids = Array(params[:exclude_ids].to_s.split(',')).map(&:to_i).select(&:positive?).uniq
+  scope = scope.where.not(id: exclude_ids) if exclude_ids.any?
   like = "%#{query.gsub(/[\\%_]/) { |char| "\\#{char}" }}%"
 
   results = scope.where('canonical_name like ?', like)
