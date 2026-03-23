@@ -145,7 +145,7 @@ document.addEventListener("DOMContentLoaded", () => {
         <td><%= format_time Tables::ClosedNet.maximum(:created_at) %></td>
       </tr>
       <tr>
-        <td><a href="/admin/table/canonical_nets">canonical nets</a></td>
+        <td><a href="/admin/canonical-nets">canonical nets</a></td>
         <td><%= Tables::CanonicalNet.count %></td>
         <td><%= format_time Tables::CanonicalNet.maximum(:updated_at) %></td>
       </tr>
