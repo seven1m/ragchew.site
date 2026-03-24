@@ -11,7 +11,7 @@ class NetList
 
   def list(order: :name, include_testing: true)
     update_cache
-    scope = Tables::Net.includes(:club).order(order)
+    scope = Tables::Net.includes(:club, :canonical_net).order(order)
     scope = scope.where(ragchew_only_testing_net: false) unless include_testing
     scope = scope.where.not(name: APPLE_REVIEW_DEMO_NET_NAME) unless APPLE_REVIEW_DEMO_ENABLED
     scope.to_a
