@@ -30,12 +30,12 @@
           />
         </p>
         <% group.canonical_nets.each do |canonical_net| %>
+          <% name_counts = canonical_net.alias_details.map { |detail| [detail[:name], detail[:active_count] + detail[:closed_count]] } %>
           <label style="display:block; margin: 6px 0;">
             <input type="checkbox" name="canonical_net_ids[]" value="<%== canonical_net.id %>" checked />
             <%== canonical_net.canonical_name %>
-            <% aliases = canonical_net.all_names - [canonical_net.canonical_name] %>
-            <% if aliases.any? %>
-              <span style="color:#666">(<%== aliases.join(', ') %>)</span>
+            <% if name_counts.any? %>
+              <span style="color:#666">(<%== name_counts.map { |name, count| "#{name} (#{count})" }.join(', ') %>)</span>
             <% end %>
           </label>
         <% end %>

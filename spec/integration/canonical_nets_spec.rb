@@ -301,6 +301,33 @@ RSpec.describe 'canonical nets' do
     expect(last_response.body).not_to include('Unrelated Net')
   end
 
+  it 'shows per-name counts in suggested merges' do
+    admin = create_user(call_sign: 'K1ADMIN')
+    admin.update!(admin: true)
+    first = Tables::CanonicalNet.create!(canonical_name: 'Metro Weather Net')
+    second = Tables::CanonicalNet.create!(canonical_name: 'Metro WX Net')
+    create_closed_net(canonical_net: first, name: 'Metro Weather Net', started_at: 2.days.ago)
+    create_closed_net(canonical_net: first, name: 'Metro WX', started_at: 1.day.ago)
+    create_closed_net(canonical_net: second, name: 'Metro WX Net', started_at: 3.days.ago)
+    create_closed_net(canonical_net: second, name: 'Metro Weather', started_at: 4.days.ago)
+    Tables::SuggestedCanonicalNetMerge.create!(
+      signature: '146.52::2m::metro',
+      frequency: '146.52',
+      band: '2m',
+      normalized_name: 'metro weather net',
+      canonical_net_ids: [first.id, second.id].to_json,
+      raw_names: ['Metro Weather Net', 'Metro WX Net'].to_json
+    )
+
+    get '/admin/canonical-nets', {}, session_env_for(admin)
+
+    expect(last_response.status).to eq(200)
+    expect(last_response.body).to include('Metro Weather Net (1)')
+    expect(last_response.body).to include('Metro WX (1)')
+    expect(last_response.body).to include('Metro WX Net (1)')
+    expect(last_response.body).to include('Metro Weather (1)')
+  end
+
   it 'returns canonical net search suggestions for the admin detail page' do
     admin = create_user(call_sign: 'K1ADMIN')
     admin.update!(admin: true)
