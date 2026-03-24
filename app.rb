@@ -167,7 +167,7 @@ helpers do
   end
 
   def canonical_net_path(canonical_net)
-    "/nets/#{canonical_net.id}"
+    "/net/#{url_escape(canonical_net.canonical_name)}"
   end
 
   def make_url_safe_for_html_attribute(s)
@@ -414,56 +414,6 @@ end
 get '/privacy' do
   @page_title = 'Privacy Policy'
   erb :privacy
-end
-
-get '/nets/:id' do
-  @canonical_net = Tables::CanonicalNet.find(params[:id])
-  representation = CanonicalNetResolver.representative_for(@canonical_net)
-  halt 404, erb(:missing_net) unless representation
-
-  case representation[:type]
-  when :active
-    @net = representation[:record]
-    @page_title = @canonical_net.canonical_name
-
-    if @user&.monitoring_net == @net
-      @user.update!(monitoring_net_last_refreshed_at: Time.now)
-    end
-
-    if @user
-      @is_logger = @user.logging_net == @net
-      @messages = @net.messages.order(:sent_at).to_a
-      @monitors = @net.monitors.order(:call_sign).to_a
-      @favorites = @user.favorites.pluck(:call_sign)
-      @favorited_net = @user.favorite_nets.where(canonical_net_id: @canonical_net.id).any?
-      @blocked_stations = @user.blocked_stations.pluck(:call_sign)
-      @net_blocked_stations = @is_logger ? @net.blocked_stations.pluck(:call_sign) : []
-      @last_updated_at = @net.fully_updated_at
-      @update_interval = @net.update_interval_in_seconds + 1
-      erb :net
-    else
-      @is_logger = false
-      @checkin_count = @net.checkins.count
-      @message_count = @net.messages.count
-      @monitor_count = @net.monitors.count
-      erb :net_limited
-    end
-  when :closed
-    @closed_net = representation[:record]
-    @name = @canonical_net.canonical_name
-    @page_title = @name
-    @checkin_count = @closed_net.checkin_count
-    @message_count = @closed_net.message_count
-    @monitor_count = @closed_net.monitor_count
-    @net_count = Tables::Net.count
-    @favorited_net = @user.favorite_nets.where(canonical_net_id: @canonical_net.id).any? if @user
-    @more_recent_closed_net = @canonical_net.closed_nets.where('started_at > ?', @closed_net.started_at).order(started_at: :desc).first
-    @open_net = @canonical_net.representative_active_net
-    erb :closed_net
-  end
-rescue ActiveRecord::RecordNotFound
-  status 404
-  erb :missing_net
 end
 
 get '/net/:name' do
@@ -953,16 +903,19 @@ get '/api/group/:id' do
   content_type 'application/json'
 
   club = Tables::Club.find(params[:id])
+  nets = club.canonical_nets.includes(:nets, :closed_nets).order(:canonical_name).filter_map do |canonical_net|
+    records = canonical_net.nets.to_a + canonical_net.closed_nets.to_a
+    next if records.empty?
 
-  nets = (
-    club.nets
-        .select(:id, :name, :frequency, :band, :mode, :started_at)
-        .to_a +
-    club.closed_nets
-        .select(:id, :name, :frequency, :band, :mode, :started_at)
-        .to_a
-  ).sort_by { |n| n.name.to_s }
-   .uniq { |n| n.name.to_s.downcase }
+    record = records.max_by { |net| [net.started_at || Time.at(0), net.id] }
+    {
+      id: record.id,
+      name: canonical_net.canonical_name,
+      band: record.band,
+      mode: record.mode,
+      frequency: record.frequency,
+    }
+  end
 
   {
     club: club.as_json.merge(

@@ -116,6 +116,82 @@ RSpec.describe 'canonical nets' do
     expect(last_response.body).not_to include('/net/Metro+Traffic"')
   end
 
+  it 'links the homepage listing by canonical name' do
+    server = create_server
+    canonical_net = Tables::CanonicalNet.create!(canonical_name: 'Metro Weather Net')
+    create_active_net(server:, canonical_net:, name: 'Metro WX')
+
+    get '/'
+
+    expect(last_response.status).to eq(200)
+    expect(last_response.body).to include('/net/Metro+Weather+Net')
+    expect(last_response.body).not_to include("/nets/#{canonical_net.id}")
+  end
+
+  it 'returns canonical names from /api/nets' do
+    server = create_server
+    canonical_club = Tables::Club.create!(name: 'Metro Club')
+    canonical_net = Tables::CanonicalNet.create!(canonical_name: 'Metro Weather Net', club: canonical_club)
+    create_active_net(server:, canonical_net:, name: 'Metro WX')
+
+    get '/api/nets'
+
+    expect(last_response.status).to eq(200)
+    net_json = JSON.parse(last_response.body).fetch('nets').first
+    expect(net_json['name']).to eq('Metro Weather Net')
+    expect(net_json['logged_name']).to eq('Metro WX')
+    expect(net_json['club_id']).to eq(canonical_club.id)
+  end
+
+  it 'returns canonical nets from /api/group/:id using the most recent real net id and details' do
+    server = create_server
+    club = Tables::Club.create!(name: 'Metro Club')
+    canonical_net = Tables::CanonicalNet.create!(canonical_name: 'Metro Weather Net', club:)
+    Tables::Net.create!(
+      server:,
+      canonical_net:,
+      club:,
+      host: server.host,
+      name: 'Metro WX',
+      frequency: '146.52',
+      mode: 'FM',
+      band: '2m',
+      net_control: 'KI5ZDF',
+      net_logger: 'KI5ZDF-TIM R - v3.1.7L',
+      im_enabled: true,
+      update_interval: 20_000,
+      started_at: 2.days.ago
+    )
+    recent_closed_net = Tables::ClosedNet.create!(
+      canonical_net:,
+      club:,
+      name: 'Metro WX',
+      frequency: '444.55',
+      mode: 'FM',
+      net_control: 'KI5ZDF',
+      net_logger: 'KI5ZDF-TIM R - v3.1.7L',
+      band: '70cm',
+      started_at: 1.day.ago,
+      ended_at: 23.hours.ago,
+      host: 'www.netlogger.org',
+      checkin_count: 0,
+      message_count: 0,
+      monitor_count: 0
+    )
+
+    get "/api/group/#{club.id}"
+
+    expect(last_response.status).to eq(200)
+    net_json = JSON.parse(last_response.body).fetch('nets').first
+    expect(net_json).to eq(
+      'id' => recent_closed_net.id,
+      'name' => 'Metro Weather Net',
+      'band' => '70cm',
+      'mode' => 'FM',
+      'frequency' => '444.55'
+    )
+  end
+
   it 'renders canonical nets on the admin club edit page and hides individual alias names' do
     admin = create_user(call_sign: 'K1ADMIN')
     admin.update!(admin: true)
@@ -160,16 +236,54 @@ RSpec.describe 'canonical nets' do
     expect(last_response.body).to include('Metro Traffic Net')
   end
 
-  it 'renders the public canonical page with the canonical title and alias label' do
+  it 'renders the canonical net via /net/:canonical_name with the canonical title and alias label' do
     server = create_server
     canonical_net = Tables::CanonicalNet.create!(canonical_name: 'Metro Weather Net')
     create_active_net(server:, canonical_net:, name: 'Metro WX')
+    stub_request(:get, %r{https://www\.netlogger\.org/cgi-bin/NetLogger/GetUpdates3\.php})
+      .with { |request| CGI.parse(URI(request.uri.to_s).query.to_s)['NetName'] == ['Metro WX'] }
+      .to_return(
+        status: 200,
+        body: netlogger_html('<!--NetLogger Start Data--><!--NetLogger End Data--><!-- NetMonitors Start --><!-- NetMonitors End --><!-- IM Start --><!-- IM End --><!-- Ext Data Start --><!-- Ext Data End --><!-- Net Info Start -->Date=2026-03-24 23:04:50|NetName=Metro WX|Frequency=146.52|Logger=KI5ZDF-TIM R - v3.1.7L|NetControl=KI5ZDF|Mode=FM|Band=2m|AIM=Y|UpdateInterval=20000|AltNetName=Metro WX|InactivityTimer=30|MiscNetParameters=|<!-- Net Info End -->')
+      )
 
-    get "/nets/#{canonical_net.id}"
+    get "/net/#{CGI.escape(canonical_net.canonical_name)}"
 
     expect(last_response.status).to eq(200)
     expect(last_response.body).to include('Metro Weather Net')
     expect(last_response.body).to include('Logged as Metro WX')
+  end
+
+  it 'renders an active representative net when visiting a canonical name with no exact active name match' do
+    server = create_server
+    canonical_net = Tables::CanonicalNet.create!(canonical_name: 'The Do Nothing Net')
+    Tables::Net.create!(
+      server:,
+      canonical_net:,
+      host: server.host,
+      name: 'DO NOTHING NET',
+      frequency: '7.200',
+      mode: 'LSB',
+      band: '40m',
+      net_control: 'KI5ZDF',
+      net_logger: 'KI5ZDF-TIM R - v3.1.7L',
+      im_enabled: true,
+      update_interval: 20_000,
+      started_at: Time.now
+    )
+    create_closed_net(canonical_net:, name: 'DO NOTHING NET', started_at: 1.day.ago)
+    stub_request(:get, %r{https://www\.netlogger\.org/cgi-bin/NetLogger/GetUpdates3\.php})
+      .with { |request| CGI.parse(URI(request.uri.to_s).query.to_s)['NetName'] == ['DO NOTHING NET'] }
+      .to_return(
+        status: 200,
+        body: netlogger_html('<!--NetLogger Start Data--><!--NetLogger End Data--><!-- NetMonitors Start --><!-- NetMonitors End --><!-- IM Start --><!-- IM End --><!-- Ext Data Start --><!-- Ext Data End --><!-- Net Info Start -->Date=2026-03-24 23:04:50|NetName=DO NOTHING NET|Frequency=7.200|Logger=KI5ZDF-TIM R - v3.1.7L|NetControl=KI5ZDF|Mode=LSB|Band=40m|AIM=Y|UpdateInterval=20000|AltNetName=DO NOTHING NET|InactivityTimer=30|MiscNetParameters=|<!-- Net Info End -->')
+      )
+
+    get "/net/#{CGI.escape(canonical_net.canonical_name)}"
+
+    expect(last_response.status).to eq(200)
+    expect(last_response.body).to include('The Do Nothing Net')
+    expect(last_response.body).to include('Logged as DO NOTHING NET')
   end
 
   it 'supports OR search terms on the canonical admin page' do

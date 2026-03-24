@@ -25,6 +25,14 @@ module Tables
       end
     end
 
+    def as_json(options = nil)
+      super(options).merge(
+        'club_id' => canonical_net&.club_id || club_id,
+        'name' => canonical_net&.canonical_name || name,
+        'logged_name' => name
+      )
+    end
+
     private
 
     def assign_canonical_net

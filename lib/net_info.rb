@@ -43,7 +43,8 @@ class NetInfo
     if id
       @record = Tables::Net.find_by!(id:)
     elsif name
-      @record = Tables::Net.find_by!(name:)
+      @record = Tables::Net.find_by(name:) || CanonicalNetResolver.resolve(name)&.representative_active_net
+      raise ActiveRecord::RecordNotFound unless @record
     else
       raise 'must supply either id or name to NetInfo.new'
     end

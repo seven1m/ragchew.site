@@ -4,7 +4,6 @@
   clubLogo: @net.club&.logo_url,
   clubUrl: @net.club && "/group/#{url_escape(@net.club.name)}",
   canonicalNet: @canonical_net&.as_json,
-  canonicalNetPath: @canonical_net && canonical_net_path(@canonical_net),
   net: @net.as_json,
   netId: @net.id,
   updateInterval: @update_interval,

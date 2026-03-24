@@ -14,6 +14,7 @@ RSpec.describe 'NetInfo' do
     Tables::Checkin.delete_all
     Tables::ClosedNet.delete_all
     Tables::Net.delete_all
+    Tables::CanonicalNet.delete_all
     Tables::Server.delete_all
     Tables::Favorite.delete_all
     Tables::Device.delete_all
@@ -78,6 +79,8 @@ RSpec.describe 'NetInfo' do
       net_list_fetched_at: Time.now,
       updated_at: Time.now
     )
+    canonical_club = Tables::Club.create!(name: 'Canonical Club')
+    canonical_net = Tables::CanonicalNet.create!(canonical_name: 'Canonical NetInfo Spec Net', club: canonical_club)
     net = Tables::Net.create!(
       server: server,
       host: server.host,
@@ -89,7 +92,8 @@ RSpec.describe 'NetInfo' do
       net_logger: 'KI5ZDF-TIM R - v3.1.7L',
       im_enabled: true,
       update_interval: 20_000,
-      started_at: Time.now
+      started_at: Time.now,
+      canonical_net:
     )
 
     user = create_user(call_sign: 'KI5ZDF', first_name: 'TIM R', last_name: 'MORGAN')
@@ -114,6 +118,10 @@ RSpec.describe 'NetInfo' do
 
     get "/api/net/#{net.id}/details", {}, headers
     expect(last_response.status).to eq(200)
+    details = JSON.parse(last_response.body)
+    expect(details.dig('net', 'club_id')).to eq(canonical_club.id)
+    expect(details.dig('net', 'name')).to eq('Canonical NetInfo Spec Net')
+    expect(details.dig('net', 'logged_name')).to eq('NetInfo Spec Net')
 
     net.reload.update_column(:fully_updated_at, 1.hour.ago)
     get "/api/net/#{net.id}/details", {}, headers

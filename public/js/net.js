@@ -436,8 +436,9 @@ class Net extends Component {
           </div>`}
 
           ${this.props.canonicalNet &&
-          this.props.canonicalNet.canonical_name !== this.props.net.name
-            ? html`<p><em>Logged as ${this.props.net.name}</em></p>`
+          this.props.net.logged_name &&
+          this.props.canonicalNet.canonical_name !== this.props.net.logged_name
+            ? html`<p><em>Logged as ${this.props.net.logged_name}</em></p>`
             : null}
 
           ${this.renderNetControls()} ${this.renderNetDetails()}
@@ -725,7 +726,9 @@ class Net extends Component {
     try {
       const params = new URLSearchParams()
       if (this.props.club) params.append("club_id", this.props.club.id)
-      if (this.props.net?.name) params.append("net_name", this.props.net.name)
+      if (this.props.net?.logged_name || this.props.net?.name) {
+        params.append("net_name", this.props.net.logged_name || this.props.net.name)
+      }
 
       const response = await fetch(
         `/api/station/${encodeURIComponent(
