@@ -46,8 +46,12 @@ module Tables
       club_members.where(club_id: club.id).exists?
     end
 
+    def last_active_at
+      [last_web_active_at, last_mobile_active_at, last_signed_in_at].compact.max
+    end
+
     def one_time_user?
-      last_signed_in_at && created_at && (last_signed_in_at - created_at) < (12 * 60 * 60)
+      last_active_at && created_at && (last_active_at - created_at) < (12 * 60 * 60)
     end
   end
 end

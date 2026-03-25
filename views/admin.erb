@@ -94,7 +94,8 @@ document.addEventListener("DOMContentLoaded", () => {
           <th>Call Sign</th>
           <th>Name</th>
           <th>Created</th>
-          <th>Last Signed In</th>
+          <th>Last Web Active</th>
+          <th>Last Mobile Active</th>
           <th>Checked In</th>
         </tr>
       </thead>
@@ -104,7 +105,8 @@ document.addEventListener("DOMContentLoaded", () => {
             <td><a href="/admin/users/<%= user.id %>"><%== user.call_sign %></a></td>
             <td><%== user.first_name %> <%== user.last_name %></td>
             <td><%= format_time user.created_at %></td>
-            <td><%= format_time user.last_signed_in_at %></td>
+            <td><%= format_time user.last_web_active_at %></td>
+            <td><%= format_time user.last_mobile_active_at %></td>
             <td><%= erb :_last_heard, locals: { call_sign: user.call_sign } %></td>
           </tr>
         <% end %>

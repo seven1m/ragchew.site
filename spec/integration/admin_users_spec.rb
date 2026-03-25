@@ -46,6 +46,9 @@ RSpec.describe 'admin users' do
     get '/admin', {}, session_env_for(admin)
 
     expect(last_response.status).to eq(200)
+    expect(last_response.body).to include('Last Web Active')
+    expect(last_response.body).to include('Last Mobile Active')
+    expect(last_response.body).not_to include('Last Signed In')
     expect(last_response.body).to include('web active')
     expect(last_response.body).to include('mobile active')
     expect(last_response.body).to include('unique web users over the last 30 days')
