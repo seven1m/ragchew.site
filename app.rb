@@ -484,10 +484,10 @@ get '/api/net_id/:name' do
   content_type 'application/json'
 
   params[:name] = CGI.unescape(params[:name])
-  if (net = Tables::Net.find_by(name: params[:name]))
-    { id: net.id, canonicalNetId: net.canonical_net_id }.to_json
+  canonical_net = CanonicalNetResolver.resolve(params[:name])
+  if (net = canonical_net&.representative_active_net)
+    { id: net.id, canonicalNetId: canonical_net.id }.to_json
   else
-    canonical_net = CanonicalNetResolver.resolve(params[:name])
     status 404
     if canonical_net && (closed_net = canonical_net.representative_closed_net)
       { error: "net closed", closedNetId: closed_net.id, canonicalNetId: canonical_net.id }.to_json
