@@ -1210,6 +1210,44 @@ get '/api/favorites' do
   }.to_json
 end
 
+get '/api/blocked-stations' do
+  require_user!
+  content_type 'application/json'
+
+  {
+    blocked_stations: @user.blocked_stations.order(:call_sign).map { |blocked_station|
+      {
+        id: blocked_station.id,
+        call_sign: blocked_station.call_sign
+      }
+    }
+  }.to_json
+end
+
+post '/api/blocked-stations/:call_sign' do
+  require_user!
+  content_type 'application/json'
+
+  call_sign = params[:call_sign].to_s.strip.upcase
+  halt 400, { error: 'call_sign required' }.to_json if call_sign.empty?
+
+  @user.blocked_stations.find_or_create_by!(call_sign: call_sign)
+
+  { blocked: true }.to_json
+end
+
+delete '/api/blocked-stations/:call_sign' do
+  require_user!
+  content_type 'application/json'
+
+  call_sign = params[:call_sign].to_s.strip.upcase
+  halt 400, { error: 'call_sign required' }.to_json if call_sign.empty?
+
+  @user.blocked_stations.where(call_sign: call_sign).delete_all
+
+  { blocked: false }.to_json
+end
+
 post '/api/feedback' do
   require_user!
   content_type 'application/json'
