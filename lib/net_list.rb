@@ -5,6 +5,7 @@ require_relative './tables'
 class NetList
   CACHE_LENGTH_IN_SECONDS = 30
   SERVER_CACHE_LENGTH_IN_SECONDS = 3600
+  REQUIRED_FETCHED_NET_FIELDS = %i[name host server started_at].freeze
   Error = Class.new(StandardError)
   ServerError = Class.new(Error)
   ParseError = Class.new(Error)
@@ -80,7 +81,7 @@ class NetList
   def update_net_cache(force: false)
     return unless force || net_cache_needs_updating?
 
-    data = fetch
+    data = sanitize_fetched_nets(fetch)
     cached = Tables::Net.where(ragchew_only_testing_net: false).each_with_object({}) do |net, hash|
       hash[net.name] = net
     end
@@ -105,6 +106,16 @@ class NetList
 
     # archive closed nets
     cached.values.each do |net|
+      unless net.started_at.present?
+        Honeybadger.notify('Dropping a cached net without a start time before archiving.', context: {
+                             net_id: net.id,
+                             name: net.name,
+                             host: net.host,
+                           })
+        net.destroy
+        next
+      end
+
       Tables::ClosedNet.from_net(net).save!
       net.destroy
     end
@@ -138,5 +149,23 @@ class NetList
     raise ServerError, error.message
   rescue StandardError => error
     raise ParseError, error.message
+  end
+
+  def sanitize_fetched_nets(data)
+    data.filter_map do |net_info|
+      missing_fields = REQUIRED_FETCHED_NET_FIELDS.filter do |field|
+        net_info[field].blank?
+      end
+
+      if missing_fields.empty?
+        net_info
+      else
+        Honeybadger.notify('Skipping a fetched net with missing required fields.', context: {
+                             missing_fields:,
+                             net_info: net_info,
+                           })
+        nil
+      end
+    end
   end
 end

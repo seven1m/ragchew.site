@@ -133,6 +133,83 @@ RSpec.describe NetList do
     expect(NetList.new.list.map(&:name)).not_to include('No Start')
   end
 
+  it 'does not create fetched nets with missing required fields' do
+    server = Tables::Server.create!(
+      name: 'NETLOGGER',
+      host: 'www.netlogger.org',
+      state: 'Public',
+      is_public: true,
+      net_list_fetched_at: 2.minutes.ago,
+      updated_at: Time.now
+    )
+    service = NetList.new
+
+    allow(service).to receive(:fetch).and_return([
+      {
+        name: 'Missing Start',
+        frequency: '146.52',
+        mode: 'FM',
+        net_control: 'NC1',
+        net_logger: 'LOG1',
+        band: '2m',
+        started_at: nil,
+        im_enabled: true,
+        update_interval: 20_000,
+        subscribers: 1,
+        server:,
+        host: server.host,
+      }
+    ])
+    expect(Honeybadger).to receive(:notify).with(
+      'Skipping a fetched net with missing required fields.',
+      hash_including(:context)
+    )
+
+    expect { service.send(:update_net_cache, force: true) }.not_to raise_error
+    expect(Tables::Net.find_by(name: 'Missing Start')).to be_nil
+  end
+
+  it 'drops cached nets without start time instead of crashing during archive' do
+    server = Tables::Server.create!(
+      name: 'NETLOGGER',
+      host: 'www.netlogger.org',
+      state: 'Public',
+      is_public: true,
+      net_list_fetched_at: 2.minutes.ago,
+      updated_at: Time.now
+    )
+    invalid_net = Tables::Net.new(
+      server:,
+      host: server.host,
+      name: 'Broken Net',
+      frequency: '146.52',
+      mode: 'FM',
+      band: '2m',
+      net_control: 'KI5ZDF',
+      net_logger: 'KI5ZDF-TIM R - v3.1.7L',
+      im_enabled: true,
+      update_interval: 20_000,
+      started_at: nil
+    )
+    invalid_net.save!(validate: false)
+
+    expect(Honeybadger).to receive(:notify).with(
+      'Dropping a cached net without a start time before archiving.',
+      hash_including(:context)
+    )
+
+    stub_request(:get, "#{base_url}/GetNetsInProgress20.php")
+      .with(query: { 'ProtocolVersion' => '2.3' })
+      .to_return(
+        status: 200,
+        body: netlogger_html('<!--NetLogger Start Data--><!--NetLogger End Data-->')
+      )
+
+    expect { NetList.new.update_net_list_right_now_with_wreckless_disregard_for_the_last_update! }.not_to raise_error
+    expect(Tables::Net.find_by(id: invalid_net.id)).to be_nil
+    expect(Tables::ClosedNet.where(name: 'Broken Net')).not_to exist
+  end
+
   it 'deletes stale servers that are no longer in ServerList' do
     stale = Tables::Server.create!(
       name: 'STALE',

@@ -14,6 +14,8 @@ module Tables
     has_many :message_reactions, dependent: :delete_all
     has_many :blocked_stations, as: :blocker, dependent: :delete_all
 
+    validates :started_at, presence: true
+
     after_create :send_notifications
     before_validation :assign_canonical_net
 
