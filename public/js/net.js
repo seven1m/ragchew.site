@@ -1857,6 +1857,10 @@ class CreateNetForm extends Component {
 
     fetch("/api/create-net", {
       method: "POST",
+      headers: {
+        Accept: "application/json",
+        "Content-Type": "application/json",
+      },
       body: JSON.stringify({
         club_id: this.state.club_id,
         net_name: this.state.net_name,
@@ -1872,19 +1876,38 @@ class CreateNetForm extends Component {
       .then((response) => {
         if (response.redirected) {
           window.location.href = response.url
+          return null
         }
-        return response.json()
+
+        const contentType = response.headers.get("content-type") || ""
+        if (contentType.includes("application/json")) {
+          return response.json().then((data) => ({ response, data }))
+        }
+
+        return response.text().then((text) => ({
+          response,
+          data: { error: text || "Unable to start net." },
+        }))
       })
-      .then((data) => {
-        if (data.error) {
+      .then((result) => {
+        if (!result) return
+
+        const { response, data } = result
+        if (!response.ok || data.error) {
           const errorFields = {}
-          data.fields.forEach((field) => (errorFields[field] = true))
+          ;(data.fields || []).forEach((field) => (errorFields[field] = true))
           this.setState({
-            errorMessage: data.error,
+            errorMessage: data.error || "Unable to start net.",
             errorFields,
             submitting: false,
           })
         }
+      })
+      .catch(() => {
+        this.setState({
+          errorMessage: "Unable to start net. Please try again.",
+          submitting: false,
+        })
       })
   }
 

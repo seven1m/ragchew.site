@@ -665,6 +665,18 @@ post '/api/create-net' do
   NetInfo.new(name: payload[:net_name]).monitor!(user: @user)
 
   redirect "/net/#{url_escape payload[:net_name]}"
+rescue NetInfo::CouldNotCreateError, NetInfo::CouldNotFindAfterCreationError, NetInfo::ServerError => e
+  status 502
+  { error: e.message }.to_json
+rescue StandardError => e
+  Honeybadger.notify(e, context: {
+    user_id: @user&.id,
+    call_sign: @user&.call_sign,
+    club_id: payload&.dig(:club_id),
+    net_name: payload&.dig(:net_name),
+  })
+  status 500
+  { error: 'Unable to start net. Please try again. If it still fails, contact support.' }.to_json
 end
 
 post '/start-logging/:id' do
