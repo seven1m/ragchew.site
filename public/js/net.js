@@ -884,7 +884,7 @@ class Net extends Component {
 
   handleEditEntry(num) {
     const entry = this.state.checkins.find((c) => c.num === num)
-    this.setState({ editing: entry })
+    this.setState({ editing: entry, info: null })
     this.formRef.current.focus()
   }
 
