@@ -67,6 +67,27 @@ RSpec.describe 'net page' do
     expect(last_response.body).not_to include('view canonical admin page')
   end
 
+  it 'allows any signed-in user to download the log' do
+    net, = create_local_net(name: 'Downloadable Net', canonical_name: 'Downloadable Net')
+    Tables::Checkin.create!(net:, num: 1, call_sign: 'K1ABC')
+    user = create_user(call_sign: 'K1USER')
+
+    get "/net/#{net.id}/log", {}, auth_headers_for(user)
+
+    expect(last_response.status).to eq(200)
+    expect(last_response.headers['content-disposition']).to include('Downloadable Net.log')
+    expect(last_response.body).to start_with('1|K1ABC|')
+  end
+
+  it 'requires sign-in to download the log' do
+    net, = create_local_net(name: 'Private Download Net', canonical_name: 'Private Download Net')
+
+    get "/net/#{net.id}/log"
+
+    expect(last_response.status).to eq(302)
+    expect(last_response.headers['location']).to eq('http://example.org/')
+  end
+
   it 'shows unblocked and own blocked messages in details while hiding other blocked messages' do
     net, = create_local_net(name: 'Filtered Chat Net', canonical_name: 'Filtered Chat Net')
     user = create_user(call_sign: 'K1USER')
@@ -80,5 +101,30 @@ RSpec.describe 'net page' do
     expect(last_response.status).to eq(200)
     messages = JSON.parse(last_response.body).fetch('messages')
     expect(messages.pluck('message')).to eq(['Visible', 'Own blocked'])
+  end
+
+  it 'allows only a user monitoring the net to download its chat' do
+    net, = create_local_net(name: 'Chatty Net', canonical_name: 'Chatty Net')
+    monitor = create_user(call_sign: 'K1MON')
+    other_user = create_user(call_sign: 'K1OTHER')
+    monitor.update!(monitoring_net: net)
+    net.messages.create!(
+      log_id: 1,
+      call_sign: 'K1ABC',
+      name: 'Alex',
+      message: 'Hello net',
+      sent_at: Time.utc(2026, 8, 2, 12, 30)
+    )
+
+    get "/net/#{net.id}/chat", {}, auth_headers_for(monitor)
+
+    expect(last_response.status).to eq(200)
+    expected_filename = "Chatty-Net-Blue-Screen-Chat-#{Time.now.utc.strftime('%m-%d-%Y')}.txt"
+    expect(last_response.headers['content-disposition']).to include(expected_filename)
+    expect(last_response.body).to eq("\r\n12:30 K1ABC-Alex: Hello net\r\n")
+
+    get "/net/#{net.id}/chat", {}, auth_headers_for(other_user)
+
+    expect(last_response.status).to eq(403)
   end
 end

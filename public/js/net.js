@@ -540,6 +540,12 @@ class Net extends Component {
         netId=${this.props.netId}
         netBlockedStations=${this.props.netBlockedStations}
       />
+
+      <p>
+        Download: <a href=${`/net/${this.props.netId}/log`}>log</a>
+        ${this.state.monitoringThisNet &&
+        html` ${" "}<a href=${`/net/${this.props.netId}/chat`}>chat</a>`}
+      </p>
     `
   }
 
@@ -565,13 +571,6 @@ class Net extends Component {
     if (this.props.isLogger) {
       return html`
         <div>
-          <button
-            onClick=${() => {
-              location.href = `/net/${this.props.netId}/log`
-            }}
-          >
-            Download log</button
-          >${" "}
           <button
             onClick=${() => {
               if (confirm("Are you sure you want to CLOSE this net?")) {
