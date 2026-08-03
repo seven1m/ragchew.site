@@ -537,8 +537,7 @@ get '/api/net/:id/details' do
     @user.update!(monitoring_net_last_refreshed_at: Time.now)
   end
 
-  messages = monitoring_this_net ? net.messages.includes(:message_reactions).order(:sent_at).to_a : []
-  messages.reject! { |m| m.blocked? && m.call_sign.upcase != @user.call_sign.upcase }
+  messages = monitoring_this_net ? net.messages.visible_to(@user).includes(:message_reactions).order(:sent_at).to_a : []
   favorites = @user.favorites.pluck(:call_sign)
   favorited_net = @user.favorite_nets.where(canonical_net_id: net.canonical_net_id).any?
 

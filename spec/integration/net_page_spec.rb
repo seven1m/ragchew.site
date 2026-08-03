@@ -66,4 +66,19 @@ RSpec.describe 'net page' do
     expect(last_response.body).not_to include('/admin/canonical-nets?name=')
     expect(last_response.body).not_to include('view canonical admin page')
   end
+
+  it 'shows unblocked and own blocked messages in details while hiding other blocked messages' do
+    net, = create_local_net(name: 'Filtered Chat Net', canonical_name: 'Filtered Chat Net')
+    user = create_user(call_sign: 'K1USER')
+    user.update!(monitoring_net: net)
+    net.messages.create!(log_id: 1, call_sign: 'K1OPEN', message: 'Visible', sent_at: 3.minutes.ago)
+    net.messages.create!(log_id: 2, call_sign: 'K1OTHER', message: 'Hidden', sent_at: 2.minutes.ago, blocked: true)
+    net.messages.create!(log_id: 3, call_sign: 'k1user', message: 'Own blocked', sent_at: 1.minute.ago, blocked: true)
+
+    get "/api/net/#{net.id}/details", {}, auth_headers_for(user)
+
+    expect(last_response.status).to eq(200)
+    messages = JSON.parse(last_response.body).fetch('messages')
+    expect(messages.pluck('message')).to eq(['Visible', 'Own blocked'])
+  end
 end
