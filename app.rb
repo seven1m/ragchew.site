@@ -170,6 +170,16 @@ helpers do
     "/net/#{url_escape(canonical_net.canonical_name)}"
   end
 
+  def canonical_url
+    path = if request.path.start_with?('/net/') && params[:name]
+             name = @canonical_net&.canonical_name || params[:name]
+             "/net/#{url_escape(name)}"
+           else
+             request.path
+           end
+    "#{BASE_URL}#{path}"
+  end
+
   def make_url_safe_for_html_attribute(s)
     s.to_s.gsub('"', '%22')
   end
