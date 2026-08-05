@@ -567,7 +567,7 @@ get '/net/:id/log' do
   service = NetInfo.new(id: params[:id])
 
   content_type 'text/plain'
-  attachment "#{service.net.name}.log"
+  attachment "#{service.name_safe_for_filename}-#{Time.now.utc.strftime('%m-%d-%Y')}.log"
   service.to_log
 rescue NetInfo::NotFoundError
   status 404
@@ -583,14 +583,8 @@ get '/net/:id/chat' do
   messages = service.net.messages.visible_to(@user).order(:sent_at)
 
   content_type 'text/plain'
-  filename_net_name = service.net.name.gsub(/[^A-Za-z0-9]+/, '-').sub(/\A-/, '').sub(/-\z/, '')
-  attachment "#{filename_net_name}-Blue-Screen-Chat-#{Time.now.utc.strftime('%m-%d-%Y')}.txt"
-  entries = messages.map do |message|
-    sender = [message.call_sign, message.name.presence].compact.join('-')
-    text = message.message.to_s.gsub(/\r?\n/, "\r\n")
-    "#{message.sent_at.utc.strftime('%H:%M')} #{sender}: #{text}"
-  end
-  entries.any? ? "\r\n#{entries.join("\r\n\r\n")}\r\n" : ''
+  attachment "#{service.name_safe_for_filename}-Blue-Screen-Chat-#{Time.now.utc.strftime('%m-%d-%Y')}.txt"
+  service.to_chat_log
 rescue NetInfo::NotFoundError
   status 404
   erb :missing_net

@@ -57,6 +57,10 @@ class NetInfo
   def name = @record.name
   def host = @record.host
 
+  def name_safe_for_filename
+    name.gsub(/[^A-Za-z0-9]+/, '-').sub(/\A-/, '').sub(/-\z/, '')
+  end
+
   def update!(force_full: false)
     return unless cache_needs_updating?
 
@@ -209,6 +213,14 @@ class NetInfo
         checkin.preferred_name,
       ].map { |cell| cell.present? ? cell.to_s.tr('|~`', ' ') : ' ' }.join('|')
     end.join("\n")
+  end
+
+  def to_chat_log
+    @record.messages.map do |message|
+      sender = [message.call_sign, message.name.presence].compact.join('-')
+      text = message.message.to_s.gsub(/\r?\n/, "\n")
+      "#{message.sent_at.utc.strftime('%H:%M')} #{sender}: #{text}"
+    end.join("\n\n")
   end
 
   def update_log_entry!(num:, params:, user:)
