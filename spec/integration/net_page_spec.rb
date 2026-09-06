@@ -75,7 +75,9 @@ RSpec.describe 'net page' do
     get "/net/#{net.id}/log", {}, auth_headers_for(user)
 
     expect(last_response.status).to eq(200)
-    expect(last_response.headers['content-disposition']).to include('Downloadable-Net-08-05-2026.log')
+    expected_date = Time.now.in_time_zone('America/Chicago').strftime('%Y-%m-%d')
+    expected_filename = "Downloadable-Net-#{expected_date}.log"
+    expect(last_response.headers['content-disposition']).to include(expected_filename)
     expect(last_response.body).to start_with('1|K1ABC|')
   end
 
@@ -119,7 +121,8 @@ RSpec.describe 'net page' do
     get "/net/#{net.id}/chat", {}, auth_headers_for(monitor)
 
     expect(last_response.status).to eq(200)
-    expected_filename = "Chatty-Net-Blue-Screen-Chat-#{Time.now.utc.strftime('%m-%d-%Y')}.txt"
+    expected_date = Time.now.in_time_zone('America/Chicago').strftime('%Y-%m-%d')
+    expected_filename = "Chatty-Net-Blue-Screen-Chat-#{expected_date}.txt"
     expect(last_response.headers['content-disposition']).to include(expected_filename)
     expect(last_response.body).to eq("12:30 K1ABC-Alex: Hello net")
 

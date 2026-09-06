@@ -162,6 +162,10 @@ helpers do
     "<span class='time #{time_only ? 'time-only' : ''}' title='#{distance_of_time_in_words(ts, Time.now)} ago' data-time='#{ts.strftime('%Y-%m-%dT%H:%M:%S.000Z')}'>#{ts.strftime('%Y-%m-%d %H:%M:%S UTC')}</span>"
   end
 
+  def download_date
+    Time.now.in_time_zone('America/Chicago').strftime('%Y-%m-%d')
+  end
+
   def url_escape(s)
     CGI.escape(s.to_s)
   end
@@ -577,7 +581,7 @@ get '/net/:id/log' do
   service = NetInfo.new(id: params[:id])
 
   content_type 'text/plain'
-  attachment "#{service.name_safe_for_filename}-#{Time.now.utc.strftime('%m-%d-%Y')}.log"
+  attachment "#{service.name_safe_for_filename}-#{download_date}.log"
   service.to_log
 rescue NetInfo::NotFoundError
   status 404
@@ -593,7 +597,7 @@ get '/net/:id/chat' do
   messages = service.net.messages.visible_to(@user).order(:sent_at)
 
   content_type 'text/plain'
-  attachment "#{service.name_safe_for_filename}-Blue-Screen-Chat-#{Time.now.utc.strftime('%m-%d-%Y')}.txt"
+  attachment "#{service.name_safe_for_filename}-Blue-Screen-Chat-#{download_date}.txt"
   service.to_chat_log
 rescue NetInfo::NotFoundError
   status 404
