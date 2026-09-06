@@ -11,6 +11,10 @@ body {
   color: #e0e0e0;
 }
 
+.dark-map-tiles {
+  filter: invert(1) hue-rotate(180deg) brightness(0.8) contrast(0.9);
+}
+
 h1, h2, h3, h4, h5, h6 {
   color: #f3f4f6;
 }
