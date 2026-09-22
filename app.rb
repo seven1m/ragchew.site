@@ -115,12 +115,8 @@ before do
                   request.host == 'www.ragchew.app' ||
                   params[:domain] == 'ragchew.app'
   if is_app_domain
-    if request.path == '/'
-      halt erb(:app_landing, layout: false)
-    else
-      redirect "https://ragchew.site#{request.fullpath}", 302
-      return
-    end
+    redirect 'https://ragchew.site/', 302
+    return
   end
 end
 

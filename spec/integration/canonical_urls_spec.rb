@@ -45,11 +45,19 @@ RSpec.describe 'canonical URLs' do
     )
   end
 
-  it 'leaves the ragchew.app landing page independently indexable' do
+  it 'temporarily redirects ragchew.app requests to the ragchew.site root' do
     header 'Host', 'ragchew.app'
-    get '/'
+    get '/about?source=app'
 
-    expect(last_response.status).to eq(200)
-    expect(last_response.body).not_to include('rel="canonical"')
+    expect(last_response.status).to eq(302)
+    expect(last_response.headers['location']).to eq('https://ragchew.site/')
+  end
+
+  it 'redirects the app-domain preview parameter to the ragchew.site root' do
+    header 'Host', 'ragchew.site'
+    get '/?domain=ragchew.app'
+
+    expect(last_response.status).to eq(302)
+    expect(last_response.headers['location']).to eq('https://ragchew.site/')
   end
 end
