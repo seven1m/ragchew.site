@@ -1,4 +1,8 @@
 module NetLike
+  def local_net?
+    host == 'ragchew.site'
+  end
+
   def show_circle?
     center_latitude && center_longitude && center_radius
   end

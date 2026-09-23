@@ -35,7 +35,6 @@ RSpec.describe 'canonical nets' do
       net_control: 'KI5ZDF',
       net_logger: 'KI5ZDF-TIM R - v3.1.7L',
       im_enabled: true,
-      update_interval: 20_000,
       started_at: Time.now
     )
   end
@@ -88,7 +87,6 @@ RSpec.describe 'canonical nets' do
       net_control: 'KI5ZDF',
       net_logger: 'KI5ZDF-TIM R - v3.1.7L',
       im_enabled: true,
-      update_interval: 20_000,
       started_at: Time.now
     )
     create_closed_net(canonical_net: closed_canonical, name: 'Metro Traffic Net', started_at: 1.day.ago).update!(club:)
@@ -159,7 +157,6 @@ RSpec.describe 'canonical nets' do
       net_control: 'KI5ZDF',
       net_logger: 'KI5ZDF-TIM R - v3.1.7L',
       im_enabled: true,
-      update_interval: 20_000,
       started_at: 2.days.ago
     )
     recent_closed_net = Tables::ClosedNet.create!(
@@ -240,12 +237,7 @@ RSpec.describe 'canonical nets' do
     server = create_server
     canonical_net = Tables::CanonicalNet.create!(canonical_name: 'Metro Weather Net')
     create_active_net(server:, canonical_net:, name: 'Metro WX')
-    stub_request(:get, %r{https://www\.netlogger\.org/cgi-bin/NetLogger/GetUpdates3\.php})
-      .with { |request| CGI.parse(URI(request.uri.to_s).query.to_s)['NetName'] == ['Metro WX'] }
-      .to_return(
-        status: 200,
-        body: netlogger_html('<!--NetLogger Start Data--><!--NetLogger End Data--><!-- NetMonitors Start --><!-- NetMonitors End --><!-- IM Start --><!-- IM End --><!-- Ext Data Start --><!-- Ext Data End --><!-- Net Info Start -->Date=2026-03-24 23:04:50|NetName=Metro WX|Frequency=146.52|Logger=KI5ZDF-TIM R - v3.1.7L|NetControl=KI5ZDF|Mode=FM|Band=2m|AIM=Y|UpdateInterval=20000|AltNetName=Metro WX|InactivityTimer=30|MiscNetParameters=|<!-- Net Info End -->')
-      )
+    stub_netlogger_xml_updates
 
     get "/net/#{CGI.escape(canonical_net.canonical_name)}"
 
@@ -268,16 +260,10 @@ RSpec.describe 'canonical nets' do
       net_control: 'KI5ZDF',
       net_logger: 'KI5ZDF-TIM R - v3.1.7L',
       im_enabled: true,
-      update_interval: 20_000,
       started_at: Time.now
     )
     create_closed_net(canonical_net:, name: 'DO NOTHING NET', started_at: 1.day.ago)
-    stub_request(:get, %r{https://www\.netlogger\.org/cgi-bin/NetLogger/GetUpdates3\.php})
-      .with { |request| CGI.parse(URI(request.uri.to_s).query.to_s)['NetName'] == ['DO NOTHING NET'] }
-      .to_return(
-        status: 200,
-        body: netlogger_html('<!--NetLogger Start Data--><!--NetLogger End Data--><!-- NetMonitors Start --><!-- NetMonitors End --><!-- IM Start --><!-- IM End --><!-- Ext Data Start --><!-- Ext Data End --><!-- Net Info Start -->Date=2026-03-24 23:04:50|NetName=DO NOTHING NET|Frequency=7.200|Logger=KI5ZDF-TIM R - v3.1.7L|NetControl=KI5ZDF|Mode=LSB|Band=40m|AIM=Y|UpdateInterval=20000|AltNetName=DO NOTHING NET|InactivityTimer=30|MiscNetParameters=|<!-- Net Info End -->')
-      )
+    stub_netlogger_xml_updates
 
     get "/net/#{CGI.escape(canonical_net.canonical_name)}"
 

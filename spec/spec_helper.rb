@@ -54,6 +54,17 @@ module SpecHelpers
       </html>
     HTML
   end
+
+  def stub_netlogger_xml_updates(checkins: '', pointer: 0)
+    base = 'https://www.netlogger.org/api'
+    header = '<Header><CreationDateUTC>Thu 03/05/2026 03:00:00</CreationDateUTC><TimeZone>UTC</TimeZone></Header>'
+    stub_request(:get, %r{#{Regexp.escape(base)}/GetCheckins\.php})
+      .to_return(status: 200, body: "<NetLoggerXML>#{header}<CheckinList><ResponseCode>200 OK</ResponseCode><Pointer>#{pointer}</Pointer>#{checkins}</CheckinList></NetLoggerXML>")
+    stub_request(:get, %r{#{Regexp.escape(base)}/GetAIM\.php})
+      .to_return(status: 200, body: "<NetLoggerXML>#{header}<AIMTranscript><ResponseCode>404 Not Found</ResponseCode><AIMNextRequestID>0</AIMNextRequestID></AIMTranscript></NetLoggerXML>")
+    stub_request(:get, %r{#{Regexp.escape(base)}/GetMonitors\.php})
+      .to_return(status: 200, body: "<NetLoggerXML>#{header}<MonitorList><ResponseCode>404 Not Found</ResponseCode></MonitorList></NetLoggerXML>")
+  end
 end
 
 RSpec.configure do |config|

@@ -31,11 +31,8 @@ module ReviewDemo
       net_logger: APPLE_REVIEW_DEMO_CALL_SIGN,
       started_at: Time.now,
       im_enabled: true,
-      update_interval: 30000,
       subscribers: 0,
-      host: 'ragchew.site',
-      created_by_ragchew: true,
-      ragchew_only_testing_net: true
+      host: 'ragchew.site'
     )
 
     qrz = QrzAutoSession.new

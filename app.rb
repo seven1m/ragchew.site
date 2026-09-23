@@ -449,7 +449,7 @@ get '/net/:name' do
     @blocked_stations = @user.blocked_stations.pluck(:call_sign)
     @net_blocked_stations = @is_logger ? @net.blocked_stations.pluck(:call_sign) : []
     @last_updated_at = @net.fully_updated_at
-    @update_interval = @net.update_interval_in_seconds + 1
+    @update_interval = Tables::Net::UPDATE_INTERVAL_IN_SECONDS + 1
     erb :net
   else
     @is_logger = false
@@ -617,14 +617,7 @@ end
 post '/api/create-net' do
   content_type 'application/json'
   payload = params.merge(JSON.parse(request.body.read)).transform_keys(&:to_sym)
-  ragchew_only_testing_net = payload[:ragchew_only_testing_net] == true || payload[:ragchew_only_testing_net] == 'true'
-
-  if ragchew_only_testing_net && !is_admin?
-    status 401
-    return { error: 'not authorized' }.to_json
-  end
-
-  require_net_logger_role! unless ragchew_only_testing_net
+  require_net_logger_role!
 
   if @user.net_creation_blocked?
     status 403
@@ -675,7 +668,6 @@ post '/api/create-net' do
   end
 
   NetInfo.create!(
-    ragchew_only_testing_net:,
     club:,
     name: payload[:net_name],
     password: payload[:net_password],
@@ -713,6 +705,7 @@ post '/start-logging/:id' do
 
   net_service = NetInfo.new(id: params[:id])
   @net = net_service.net
+  halt 403, 'External nets are read-only.' unless @net.local_net?
   unless @user.can_log_for_club?(@net.club)
     halt 401, 'not authorized'
   end
@@ -785,6 +778,7 @@ post '/close-net/:id' do
   require_net_logger_role!
 
   net_service = NetInfo.new(id: params[:id])
+  halt 403, 'External nets are read-only.' unless net_service.net.local_net?
   net_service.close!(user: @user)
 
   @user.update!(
@@ -1560,10 +1554,10 @@ get '/admin' do
 
   gather_weekly_stats
 
-  active_nets = Tables::Net.where(created_by_ragchew: true)
+  active_nets = Tables::Net.where(host: 'ragchew.site')
                            .where('created_at >= ?', 7.days.ago)
                            .includes(:club)
-  closed_nets = Tables::ClosedNet.where(created_by_ragchew: true)
+  closed_nets = Tables::ClosedNet.where(host: 'ragchew.site')
                                  .where('created_at >= ?', 7.days.ago)
                                  .includes(:club)
   @ragchew_nets = (active_nets.to_a + closed_nets.to_a).sort_by(&:created_at).reverse
@@ -2318,6 +2312,9 @@ rescue NetInfo::NotAuthorizedError
 rescue NetInfo::NotFoundError
   status 404
   { error: true }.to_json
+rescue NetInfo::ServerError => error
+  status 502
+  { error: error.message }.to_json
 end
 
 post '/api/unmonitor/:net_id' do
@@ -2342,6 +2339,9 @@ rescue NetInfo::NotAuthorizedError
 rescue NetInfo::NotFoundError
   status 404
   { error: true }.to_json
+rescue NetInfo::ServerError => error
+  status 502
+  { error: error.message }.to_json
 end
 
 post '/api/message/:net_id' do

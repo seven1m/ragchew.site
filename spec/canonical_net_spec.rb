@@ -27,7 +27,6 @@ RSpec.describe Tables::CanonicalNet do
       net_control: 'KI5ZDF',
       net_logger: 'KI5ZDF-TIM R - v3.1.7L',
       im_enabled: true,
-      update_interval: 20_000,
       started_at: Time.now
     )
   end
@@ -76,7 +75,6 @@ RSpec.describe Tables::CanonicalNet do
       net_control: 'KI5ZDF',
       net_logger: 'KI5ZDF-TIM R - v3.1.7L',
       im_enabled: true,
-      update_interval: 20_000,
       started_at: Time.now
     )
 
@@ -138,7 +136,6 @@ RSpec.describe Tables::CanonicalNet do
       net_control: 'KI5ZDF',
       net_logger: 'KI5ZDF-TIM R - v3.1.7L',
       im_enabled: true,
-      update_interval: 20_000,
       started_at: Time.now
     )
 

@@ -4,6 +4,8 @@ module Tables
   class Net < ActiveRecord::Base
     include NetLike
 
+    UPDATE_INTERVAL_IN_SECONDS = 20
+
     belongs_to :server
     belongs_to :club, optional: true
     belongs_to :canonical_net, optional: true
@@ -19,16 +21,9 @@ module Tables
     after_create :send_notifications
     before_validation :assign_canonical_net
 
-    def update_interval_in_seconds
-      if update_interval
-        update_interval / 1000
-      else
-        20
-      end
-    end
-
     def as_json(options = nil)
       super(options).merge(
+        'source' => local_net? ? 'ragchew' : 'netlogger',
         'club_id' => canonical_net&.club_id || club_id,
         'name' => canonical_net&.canonical_name || name,
         'logged_name' => name

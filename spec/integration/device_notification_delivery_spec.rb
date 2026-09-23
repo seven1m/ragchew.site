@@ -51,7 +51,6 @@ RSpec.describe 'Device notification delivery filters' do
       net_control: 'KI5ZDF',
       net_logger: 'KI5ZDF-TIM R - v3.1.7L',
       im_enabled: true,
-      update_interval: 20_000,
       started_at: Time.now
     )
   end
@@ -75,7 +74,6 @@ RSpec.describe 'Device notification delivery filters' do
       net_control: 'KI5ZDF',
       net_logger: 'KI5ZDF-TIM R - v3.1.7L',
       im_enabled: true,
-      update_interval: 20_000,
       started_at: Time.now
     )
 
@@ -95,12 +93,7 @@ RSpec.describe 'Device notification delivery filters' do
 
     allow(Time).to receive(:now).and_return(Time.utc(2026, 3, 5, 3, 0, 0))
 
-    stub_request(:get, %r{#{Regexp.escape(base_url)}/GetUpdates3\.php})
-      .with { |request| CGI.parse(URI(request.uri.to_s).query.to_s)['NetName'] == ['Sleeping Net'] }
-      .to_return(
-        status: 200,
-        body: netlogger_html('<!--NetLogger Start Data-->1|KI5NEW|Tulsa|OK|New Operator| | |2026-03-05 02:24:49|Tulsa|EM26aa|10727 Riverside Pkwy|74137| | |United States|291|New|~`0|future use 2|future use 3|<!--NetLogger End Data--><!-- NetMonitors Start --><!-- NetMonitors End --><!-- IM Start --><!-- IM End --><!-- Ext Data Start --><!-- Ext Data End --><!-- Net Info Start -->Date=2026-03-05 02:24:39|NetName=Sleeping Net|Frequency=146.52|Logger=KI5ZDF-TIM R - v3.1.7L|NetControl=KI5ZDF|Mode=FM|Band=2m|AIM=Y|UpdateInterval=20000|AltNetName=Sleeping Net|InactivityTimer=30|MiscNetParameters=|<!-- Net Info End -->')
-      )
+    stub_netlogger_xml_updates(checkins: '<Checkin><SerialNo>1</SerialNo><Callsign>KI5NEW</Callsign><FirstName>New Operator</FirstName><CityCountry>Tulsa</CityCountry><State>OK</State><Grid>EM26aa</Grid></Checkin>')
 
     NetInfo.new(id: net.id).update!
   end

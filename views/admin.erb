@@ -29,7 +29,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
 <h2>Ragchew Nets</h2>
 
-<p>Nets created by this tool in the last 7 days:</p>
+<p>Nets hosted on Ragchew in the last 7 days:</p>
 
 <% if @ragchew_nets.any? %>
   <div class="table-wrapper">
@@ -80,7 +80,7 @@ document.addEventListener("DOMContentLoaded", () => {
   <p><em>no data</em></p>
 <% end %>
 
-<p><a href="/admin/table/closed_nets?column=created_by_ragchew&value=true">show all</a></p>
+<p><a href="/admin/table/closed_nets?column=host&value=ragchew.site">show all</a></p>
 
 <h2>New Users</h2>
 

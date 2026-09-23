@@ -14,6 +14,7 @@ class NetInfo
   FAVORITE_CALL_SIGNS_CACHE_TTL = 60 * 60
   FAVORITE_CALL_SIGNS_CACHE_EMPTY_SENTINEL = '__EMPTY__'
   MESSAGES_COUNT_TO_PARSE_FOR_ECHOLINK = 5
+  REMOTE_ERROR_BACKOFF = 30
 
   class NotFoundError < StandardError; end
   class ServerError < StandardError; end
@@ -23,8 +24,8 @@ class NetInfo
   class CouldNotCreateError < StandardError; end
   class CouldNotFindAfterCreationError < StandardError; end
 
-  def self.create!(ragchew_only_testing_net:, **kwargs)
-    Backend::Logger.create_net!(ragchew_only_testing_net:, **kwargs)
+  def self.create!(**kwargs)
+    Backend::Logger.create_net!(**kwargs)
   rescue Backend::Logger::CouldNotCreateNetError => error
     raise CouldNotCreateError, error.message
   rescue Backend::Logger::CouldNotFindNetAfterCreationError => error
@@ -61,12 +62,12 @@ class NetInfo
     name.gsub(/[^A-Za-z0-9]+/, '-').sub(/\A-/, '').sub(/-\z/, '')
   end
 
-  def update!(force_full: false)
-    return unless cache_needs_updating?
+  def update!(force_full: false, include_aim: true, include_monitors: true)
+    return unless cache_needs_updating?(include_aim:, include_monitors:)
 
     with_lock do
-      if cache_needs_updating?
-        update_cache(force_full:)
+      if cache_needs_updating?(include_aim:, include_monitors:)
+        update_cache(force_full:, include_aim:, include_monitors:)
       end
     end
   end
@@ -108,8 +109,10 @@ class NetInfo
       )
     rescue Backend::Logger::NotAuthorizedError => error
       raise NotAuthorizedError, error.message
-    rescue Fetcher::NotFoundError
+    rescue NetloggerXML::NotFound
       raise NotFoundError, 'Net gone'
+    rescue NetloggerXML::Error => error
+      raise ServerError, error.message
     end
   end
 
@@ -128,8 +131,10 @@ class NetInfo
       backend_for_user(user).unsubscribe!(user:)
     rescue Backend::Logger::NotAuthorizedError => error
       raise NotAuthorizedError, error.message
-    rescue Fetcher::NotFoundError
+    rescue NetloggerXML::NotFound
       raise NotFoundError, 'Net gone'
+    rescue NetloggerXML::Error => error
+      raise ServerError, error.message
     ensure
       user.update!(
         monitoring_net: nil,
@@ -152,7 +157,7 @@ class NetInfo
     #IsNetControl: X
     #Message:      hello just testing https://ragchew.site
 
-    raise NotAuthorizedError, 'Test users cannot mutate NetLogger servers.' if user.test_user? && !@record.ragchew_only_testing_net?
+    raise NotAuthorizedError, 'Test users cannot mutate NetLogger servers.' if user.test_user? && !@record.local_net?
 
     with_lock do
       blocked_stations = (@record.monitors.blocked.pluck(:call_sign).map(&:upcase) + @record.blocked_stations.pluck(:call_sign).map(&:upcase)).uniq
@@ -174,8 +179,10 @@ class NetInfo
 
     backend_for_user(user).send_message!(user:, message:)
   rescue Backend::Logger::NotAuthorizedError => error
+    message_record&.destroy!
     raise NotAuthorizedError, error.message
-  rescue Socket::ResolutionError, Net::OpenTimeout, Net::ReadTimeout
+  rescue NetloggerXML::Error, Socket::ResolutionError, Net::OpenTimeout, Net::ReadTimeout
+    message_record&.destroy!
     raise ServerError, 'There was an error with the server. Please try again later.'
   end
 
@@ -263,18 +270,26 @@ class NetInfo
 
   private
 
-  def update_cache(force_full: false)
+  def update_cache(force_full: false, include_aim: true, include_monitors: true)
     begin
-      data = backend_for_update.fetch_updates(force_full:)
-    rescue Socket::ResolutionError, Net::OpenTimeout, Net::ReadTimeout, Errno::EHOSTUNREACH => error
-      Honeybadger.notify(error, message: 'Rescued network/server error fetching data')
+      data = backend_for_update.fetch_updates(force_full:, include_aim:, include_monitors:)
+    rescue NetloggerXML::Error, Socket::ResolutionError, Net::OpenTimeout, Net::ReadTimeout, Errno::EHOSTUNREACH => error
+      if @record.local_net?
+        Honeybadger.notify(error, message: 'Rescued network/server error fetching data')
+      else
+        REDIS.set(remote_error_backoff_key, '1', ex: REMOTE_ERROR_BACKOFF)
+        Honeybadger.notify("NetLogger data fetch failed (#{error.class})")
+      end
       return
     end
     return unless data
 
-    changes = update_checkins(data[:checkins], currently_operating: data[:currently_operating])
-    changes += update_monitors(data[:monitors])
-    changes += update_messages(data[:messages])
+    changes = 0
+    if data[:checkins]
+      changes += update_checkins(data[:checkins], currently_operating: data[:currently_operating], full_snapshot: !@record.local_net?)
+    end
+    changes += update_monitors(data[:monitors], full_snapshot: !@record.local_net?) if data[:monitors]
+    changes += update_messages(data[:messages]) if data[:messages]
 
     # update this last
     update_net_info(data[:info])
@@ -333,16 +348,28 @@ class NetInfo
     end
   end
 
-  def update_checkins(checkins, currently_operating:)
+  def update_checkins(checkins, currently_operating:, full_snapshot: false)
     records = @record.checkins.to_a
 
     changes = 0
     new_call_signs = []
 
+    if full_snapshot
+      present_nums = checkins.map { |checkin| checkin[:num] }
+      removed = records.reject { |record| present_nums.include?(record.num) }
+      removed.each(&:destroy!)
+      records -= removed
+      changes += removed.size
+    end
+
     checkins.each do |checkin|
       is_new_checkin = false
       is_recheck = records.any? { |r| r.call_sign&.upcase == checkin[:call_sign]&.upcase }
       if (existing = records.detect { |r| r.num == checkin[:num] })
+        is_new_checkin = full_snapshot && existing.call_sign != checkin[:call_sign]
+        if full_snapshot && existing.call_sign == checkin[:call_sign]
+          checkin[:checked_in_at] = existing.checked_in_at
+        end
         existing.update!(checkin)
         changes += 1 if existing.previous_changes.any?
       else
@@ -419,10 +446,16 @@ class NetInfo
     changes
   end
 
-  def update_monitors(monitors)
+  def update_monitors(monitors, full_snapshot: false)
     changes = 0
 
     records = @record.monitors.all
+    if full_snapshot
+      names = monitors.map { |monitor| monitor[:call_sign] }
+      removed = records.reject { |record| names.include?(record.call_sign) }
+      removed.each(&:destroy!)
+      changes += removed.size
+    end
     monitors.each do |monitor|
       next unless monitor[:call_sign] =~ /\A[A-Za-z0-9]+\z/
 
@@ -485,10 +518,18 @@ class NetInfo
       end
     end
 
-    # FIXME: there is race here: we sometimes delete temporary messages if the netlogger
-    # fetch was in-flight and doesn't have the new message record.
-    temporary_messages_to_cleanup = records.select { |r| r.log_id.nil? }
-    temporary_messages_to_cleanup.each(&:destroy)
+    temporary_messages_to_cleanup = records.select do |record|
+      next false unless record.log_id.nil?
+
+      messages.any? do |message|
+        message[:call_sign] == record.call_sign &&
+          message[:message] == record.message &&
+          message[:sent_at] &&
+          (message[:sent_at] - record.sent_at).abs < 2.minutes
+      end ||
+        record.created_at < 2.minutes.ago
+    end
+    temporary_messages_to_cleanup.each(&:destroy!)
 
     maybe_set_echolink_from_messages!(records)
 
@@ -506,8 +547,24 @@ class NetInfo
     @record.update!(echolink:) if echolink
   end
 
-  def cache_needs_updating?
-    !@record.fully_updated_at || @record.fully_updated_at < Time.now - @record.update_interval_in_seconds
+  def cache_needs_updating?(include_aim: true, include_monitors: true)
+    return false if !@record.local_net? && REDIS.exists?(remote_error_backoff_key)
+
+    if include_aim && !@record.local_net? &&
+        (!@record.aim_fetched_at || @record.aim_fetched_at < Time.now - Tables::Net::UPDATE_INTERVAL_IN_SECONDS)
+      return true
+    end
+
+    if include_monitors && !@record.local_net? &&
+        (!@record.monitors_fetched_at || @record.monitors_fetched_at < Time.now - Backend::RemoteNet::MONITOR_INTERVAL)
+      return true
+    end
+
+    !@record.fully_updated_at || @record.fully_updated_at < Time.now - Tables::Net::UPDATE_INTERVAL_IN_SECONDS
+  end
+
+  def remote_error_backoff_key
+    "netlogger:net_fetch_error:#{@record.id}"
   end
 
   def backend_for_update

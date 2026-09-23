@@ -1,27 +1,23 @@
-require_relative './backend/net_logger'
 require_relative './backend/local_logger'
+require_relative './backend/remote_net'
 
 module Backend
   module_function
 
   def for_net(net)
-    net.ragchew_only_testing_net? ? LocalLogger : NetLogger
-  end
-
-  def for_creation(ragchew_only_testing_net:)
-    ragchew_only_testing_net ? LocalLogger : NetLogger
+    net.local_net? ? LocalLogger : RemoteNet
   end
 
   def remote
-    NetLogger
+    RemoteNet
   end
 
   class Logger
-    PasswordIncorrectError = Backend::NetLogger::PasswordIncorrectError
-    NotAuthorizedError = Backend::NetLogger::NotAuthorizedError
-    CouldNotCloseNetError = Backend::NetLogger::CouldNotCloseNetError
-    CouldNotCreateNetError = Backend::NetLogger::CouldNotCreateNetError
-    CouldNotFindNetAfterCreationError = Backend::NetLogger::CouldNotFindNetAfterCreationError
+    PasswordIncorrectError = Class.new(StandardError)
+    NotAuthorizedError = Class.new(StandardError)
+    CouldNotCloseNetError = Class.new(StandardError)
+    CouldNotCreateNetError = Class.new(StandardError)
+    CouldNotFindNetAfterCreationError = Class.new(StandardError)
 
     def initialize(net_info, user: nil, require_logger_auth: false)
       backend_class = Backend.for_net(net_info.net)
@@ -33,9 +29,8 @@ module Backend
       backend_class.start_logging(net_info, password:, user:)
     end
 
-    def self.create_net!(ragchew_only_testing_net:, **kwargs)
-      backend_class = Backend.for_creation(ragchew_only_testing_net:)
-      backend_class.create_net!(**kwargs)
+    def self.create_net!(**kwargs)
+      LocalLogger.create_net!(**kwargs)
     end
 
     def method_missing(method_name, *args, **kwargs, &block)

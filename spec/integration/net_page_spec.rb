@@ -26,10 +26,7 @@ RSpec.describe 'net page' do
       net_control: 'K1NET',
       net_logger: 'K1NET-TEST - v1.0',
       im_enabled: true,
-      update_interval: 20_000,
       started_at: Time.now,
-      created_by_ragchew: true,
-      ragchew_only_testing_net: true,
       canonical_net:
     )
 

@@ -114,7 +114,7 @@ task :cleanup do
 
   # nets close if they have no updates in a while
   count = 0
-  Tables::Net.where(created_by_ragchew: true).find_each do |net|
+  Tables::Net.where(host: 'ragchew.site').find_each do |net|
     # If the logger clicks 'stop logging' then we don't have a user to close the net with.
     next unless (user = net.logging_users.first)
 
@@ -137,7 +137,7 @@ task :populate do
   nets = NetList.new.list
   nets.each do |net|
     begin
-      NetInfo.new(id: net.id).update!
+      NetInfo.new(id: net.id).update!(include_aim: false, include_monitors: false)
     rescue NetInfo::NotFoundError
       # it closed while we were looping
     end

@@ -418,12 +418,6 @@ class Net extends Component {
             ${" "} ${this.props.canonicalNet?.canonical_name || this.props.net.name}
           </h1>
 
-          ${this.props.net.ragchew_only_testing_net &&
-          html`<div class="info-callout">
-            This net is for testing purposes only. It does not sync changes to
-            NetLogger.org
-          </div>`}
-
           ${this.props.canonicalNet &&
           this.props.net.logged_name &&
           this.props.canonicalNet.canonical_name !== this.props.net.logged_name
@@ -600,6 +594,7 @@ class Net extends Component {
     if (
       !this.props.isLogger &&
       this.props.canLogForClub &&
+      this.props.net.source === "ragchew" &&
       this.state.wantsToLogThisNet
     ) {
       return html`
@@ -641,6 +636,7 @@ class Net extends Component {
         ].join(" | ")}
         ${!this.props.isLogger &&
         this.props.canLogForClub &&
+        this.props.net.source === "ragchew" &&
         !this.state.wantsToLogThisNet &&
         html`${" "}|${" "}
           <span
@@ -1790,7 +1786,6 @@ class CreateNetForm extends Component {
     blockedStations: [],
     blockStationInput: "",
     showAdvanced: false,
-    ragchew_only_testing_net: false,
   }
 
   isCallSign(name) {
@@ -1858,7 +1853,6 @@ class CreateNetForm extends Component {
         mode: this.state.mode,
         net_control: this.state.net_control,
         blocked_stations: this.state.blockedStations,
-        ragchew_only_testing_net: this.state.ragchew_only_testing_net,
       }),
     })
       .then((response) => {
@@ -2061,19 +2055,6 @@ class CreateNetForm extends Component {
             maxlength="20"
           />
         </label>
-        ${this.props.isAdmin &&
-        html`<label>
-          <input
-            type="checkbox"
-            name="ragchew_only_testing_net"
-            checked=${this.state.ragchew_only_testing_net}
-            onchange=${(e) =>
-              this.setState({
-                ragchew_only_testing_net: e.target.checked,
-              })}
-          />
-          RagChew-only net (testing)
-        </label>`}
         ${!this.state.showAdvanced &&
         html`<p>
           <a

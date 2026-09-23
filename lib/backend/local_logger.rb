@@ -88,7 +88,7 @@ module Backend
       net_info.net.checkins.find_by(currently_operating: true)&.num || 0
     end
 
-    def self.create_net!(club:, name:, password:, frequency:, net_control:, user:, mode:, band:, enable_messaging: true, update_interval: 20000, misc_net_parameters: nil, host: 'www.netlogger.org', blocked_stations: [])
+    def self.create_net!(club:, name:, password:, frequency:, net_control:, user:, mode:, band:, enable_messaging: true, misc_net_parameters: nil, blocked_stations: [])
       net = Tables::Net.create!(
         name:,
         frequency:,
@@ -99,11 +99,8 @@ module Backend
         band:,
         started_at: Time.now,
         im_enabled: enable_messaging,
-        update_interval:,
         subscribers: 0,
         host: 'ragchew.site',
-        created_by_ragchew: true,
-        ragchew_only_testing_net: true,
       )
 
       if club.nil?
@@ -111,7 +108,7 @@ module Backend
         club = net.club
       end
 
-      net.update!(club:, created_by_ragchew: true)
+      net.update!(club:)
       user.update!(logging_net: net, logging_password: password)
 
       logger = new(NetInfo.new(id: net.id), user:, require_logger_auth: true)
@@ -134,7 +131,7 @@ module Backend
       []
     end
 
-    def fetch_updates(force_full: false)
+    def fetch_updates(force_full: false, include_aim: true, include_monitors: true)
       nil
     end
 

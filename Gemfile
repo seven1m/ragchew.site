@@ -26,6 +26,7 @@ gem 'with_advisory_lock'
 
 group :development do
   gem 'rubocop'
+  gem 'syntax_tree'
 end
 
 group :development, :test do

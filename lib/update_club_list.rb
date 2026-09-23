@@ -1,4 +1,3 @@
-require_relative './fetcher'
 require_relative './tables'
 require 'open-uri'
 

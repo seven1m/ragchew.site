@@ -3,17 +3,15 @@ require 'time'
 require_relative './tables'
 
 class NetList
-  CACHE_LENGTH_IN_SECONDS = 30
-  SERVER_CACHE_LENGTH_IN_SECONDS = 3600
-  REQUIRED_FETCHED_NET_FIELDS = %i[name host server started_at].freeze
+  CACHE_LENGTH_IN_SECONDS = 60
+  REQUIRED_FETCHED_NET_FIELDS = %i[name started_at].freeze
   Error = Class.new(StandardError)
   ServerError = Class.new(Error)
   ParseError = Class.new(Error)
 
-  def list(order: :name, include_testing: true)
+  def list(order: :name)
     update_cache
     scope = Tables::Net.left_outer_joins(:canonical_net).includes(:club, :canonical_net).order(order)
-    scope = scope.where(ragchew_only_testing_net: false) unless include_testing
     scope = scope.where.not(name: APPLE_REVIEW_DEMO_NET_NAME) unless APPLE_REVIEW_DEMO_ENABLED
     scope.to_a
   end
@@ -27,145 +25,73 @@ class NetList
   private
 
   def update_cache
-    if server_cache_needs_updating?
-      Tables::Net.with_advisory_lock(:update_server_list_cache, timeout_seconds: 2) do
-        if server_cache_needs_updating?
-          update_server_cache
-        end
-      end
+    return unless net_cache_needs_updating?
+
+    Tables::Net.with_advisory_lock(:update_net_list_cache, timeout_seconds: 2) do
+      update_net_cache if net_cache_needs_updating?
     end
-
-    if net_cache_needs_updating?
-      Tables::Net.with_advisory_lock(:update_net_list_cache, timeout_seconds: 2) do
-        if net_cache_needs_updating?
-          update_net_cache
-        end
-      end
-    end
-  end
-
-  def update_server_cache
-    return unless server_cache_needs_updating?
-
-    cached = Tables::Server.by_host
-
-    # add new and update existing
-    fetch_server_catalog.each do |server_info|
-      host = server_info.fetch(:host)
-      record = cached.delete(host) || Tables::Server.new(host:)
-      record.update!(
-        name: server_info[:name],
-        state: server_info[:state],
-        is_public: server_info[:is_public],
-        server_created_at: server_info[:server_created_at],
-        min_aim_interval: server_info[:min_aim_interval],
-        default_aim_interval: server_info[:default_aim_interval],
-        token_support: server_info[:token_support],
-        delta_updates: server_info[:delta_updates],
-        ext_data: server_info[:ext_data],
-        timestamp_utc_offset: server_info[:timestamp_utc_offset],
-        club_info_list_url: server_info[:club_info_list_url],
-        updated_at: Time.now,
-      )
-    end
-
-    # delete old
-    cached.values.each(&:destroy)
-  end
-
-  def server_cache_needs_updating?
-    last_updated = Tables::Server.maximum(:updated_at)
-    !last_updated || last_updated < Time.now - SERVER_CACHE_LENGTH_IN_SECONDS
   end
 
   def update_net_cache(force: false)
     return unless force || net_cache_needs_updating?
 
-    data = sanitize_fetched_nets(fetch)
-    cached = Tables::Net.where(ragchew_only_testing_net: false).each_with_object({}) do |net, hash|
-      hash[net.name] = net
-    end
-
-    blocked_net_names = Tables::BlockedNet.pluck(:name)
-    data.reject! do |net_info|
-      Tables::BlockedNet.blocked?(net_info[:name], names: blocked_net_names)
-    end
-
-    # update existing and create new
-    data.each do |net_info|
-      if (net = cached.delete(net_info[:name]))
-        net_info[:echolink] = Echolink.parse_frequency(net_info[:frequency]) if net.echolink.blank?
-        net.update!(net_info)
-      else
-        net = Tables::Net.new(net_info)
-        net.echolink = Echolink.parse_frequency(net.frequency)
-        AssociateNetWithClub.new(net).call
-        net.save!
-      end
-    end
-
-    # archive closed nets
-    cached.values.each do |net|
-      unless net.started_at.present?
-        Honeybadger.notify('Dropping a cached net without a start time before archiving.', context: {
-                             net_id: net.id,
-                             name: net.name,
-                             host: net.host,
-                           })
-        net.destroy
-        next
-      end
-
-      Tables::ClosedNet.from_net(net).save!
-      net.destroy
-    end
-
-    # update all the timestamps at once
+    catalog = Backend.remote.fetch_active_nets
     now = Time.now
-    Tables::Net.update_all(partially_updated_at: now)
-    Tables::Server.update_all(net_list_fetched_at: now)
+    existing_servers = Tables::Server.all.index_by(&:name)
+    existing_nets = Tables::Net.where.not(host: 'ragchew.site').index_by { |net| [net.server_id, net.name] }
+    blocked_names = Tables::BlockedNet.pluck(:name)
+
+    catalog.each do |server_name, nets|
+      server = existing_servers.delete(server_name) || Tables::Server.new(
+        name: server_name,
+        host: host_for(server_name),
+        club_info_list_url: 'https://www.netlogger.org/downloads/ClubInfoList.txt'
+      )
+      server.update!(is_public: true, state: 'Public', net_list_fetched_at: now)
+
+      nets.each do |attributes|
+        missing = REQUIRED_FETCHED_NET_FIELDS.select { |field| attributes[field].blank? }
+        if missing.any?
+          Honeybadger.notify('Skipping a fetched net with missing required fields.', context: { server_name:, missing_fields: missing })
+          next
+        end
+        next if Tables::BlockedNet.blocked?(attributes[:name], names: blocked_names)
+
+        key = [server.id, attributes[:name]]
+        net = existing_nets.delete(key)
+        if net
+          attributes[:echolink] = Echolink.parse_frequency(attributes[:frequency]) if net.echolink.blank?
+          net.update!(attributes.merge(host: server.host))
+        else
+          net = Tables::Net.new(attributes.merge(server:, host: server.host))
+          net.echolink = Echolink.parse_frequency(net.frequency)
+          AssociateNetWithClub.new(net).call
+          net.save!
+        end
+      end
+    end
+
+    existing_nets.each_value do |net|
+      Tables::ClosedNet.from_net(net).save! if net.started_at.present?
+      net.destroy!
+    end
+    existing_servers.each_value do |server|
+      server.destroy! unless server.nets.exists?
+    end
+    Tables::Net.where.not(host: 'ragchew.site').update_all(partially_updated_at: now)
+  rescue Socket::ResolutionError, Net::OpenTimeout, Net::ReadTimeout, Errno::EHOSTUNREACH, NetloggerXML::Error => error
+    Honeybadger.notify(error, message: 'Unable to refresh NetLogger active nets')
   end
 
   def net_cache_needs_updating?
-    last_updated = Tables::Server.maximum(:net_list_fetched_at)
-    !last_updated || last_updated < Time.now - CACHE_LENGTH_IN_SECONDS
+    fetched_at = Tables::Server.maximum(:net_list_fetched_at)
+    fetched_at.nil? || fetched_at < Time.now - CACHE_LENGTH_IN_SECONDS
   end
 
-  def fetch
-    fetch_nets_in_progress
-  end
+  def host_for(server_name)
+    return 'www.netlogger.org' if server_name == 'NETLOGGER'
 
-  def fetch_server_catalog
-    Backend.remote.fetch_server_catalog!
-  rescue Socket::ResolutionError, Net::OpenTimeout, Net::ReadTimeout, Errno::EHOSTUNREACH => error
-    raise ServerError, error.message
-  rescue StandardError => error
-    raise ParseError, error.message
-  end
-
-  def fetch_nets_in_progress
-    Backend.remote.fetch_nets_in_progress(servers: Tables::Server.is_public)
-  rescue Socket::ResolutionError, Net::OpenTimeout, Net::ReadTimeout, Errno::EHOSTUNREACH => error
-    raise ServerError, error.message
-  rescue StandardError => error
-    raise ParseError, error.message
-  end
-
-  def sanitize_fetched_nets(data)
-    data.filter_map do |net_info|
-      missing_fields = REQUIRED_FETCHED_NET_FIELDS.filter do |field|
-        net_info[field].blank?
-      end
-
-      if missing_fields.empty?
-        net_info
-      else
-        Honeybadger.notify('Skipping a fetched net with missing required fields.', context: {
-                             missing_fields:,
-                             net_info: net_info,
-                           })
-        nil
-      end
-    end
+    suffix = server_name[/\ANETLOGGER(\d+)\z/i, 1]
+    suffix ? "www.netlogger#{suffix}.org" : 'www.netlogger.org'
   end
 end

@@ -27,14 +27,13 @@ RSpec.describe 'LocalLogger' do
       band: '2m',
       mode: 'FM',
       net_control: 'KI5ZDF',
-      ragchew_only_testing_net: true,
       blocked_stations: []
     }.to_json, headers.merge('CONTENT_TYPE' => 'application/json')
 
     expect(last_response.status).to eq(302)
 
     net = Tables::Net.find_by!(name: 'Local Testing Net')
-    expect(net.ragchew_only_testing_net?).to eq(true)
+    expect(net.local_net?).to eq(true)
     expect(user.reload.monitoring_net_id).to eq(net.id)
 
     patch "/api/log/#{net.id}/1", {
@@ -93,7 +92,6 @@ RSpec.describe 'LocalLogger' do
       band: '2m',
       mode: 'FM',
       net_control: 'KI5ZDF',
-      ragchew_only_testing_net: true,
       blocked_stations: []
     }.to_json, admin_headers.merge('CONTENT_TYPE' => 'application/json')
 
@@ -135,7 +133,6 @@ RSpec.describe 'LocalLogger' do
       band: '2m',
       mode: 'FM',
       net_control: 'KI5ZDF',
-      ragchew_only_testing_net: true,
       blocked_stations: []
     }.to_json, headers.merge('CONTENT_TYPE' => 'application/json')
 
