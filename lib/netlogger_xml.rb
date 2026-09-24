@@ -69,6 +69,7 @@ class NetloggerXML
       self.class.log("GET #{logged_uri} -> HTTP #{response.code}")
       if response.code.to_i == 429
         REDIS.set("netlogger:rate_limited:#{endpoint}", "1", ex: 60)
+        warn "NetLogger #{endpoint} returned HTTP 429"
         raise RateLimited, "NetLogger API rate limited the request"
       end
       raise Error, "NetLogger API HTTP #{response.code}"
@@ -103,6 +104,7 @@ class NetloggerXML
       raise Unauthorized, "NetLogger API authorization failed"
     when 429
       REDIS.set("netlogger:rate_limited:#{endpoint}", "1", ex: 60)
+      warn "NetLogger #{endpoint} returned response 429"
       raise RateLimited, "NetLogger API rate limited the request"
     else
       raise Error, "NetLogger API response #{status.zero? ? "missing" : status}"

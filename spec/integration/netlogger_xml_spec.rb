@@ -101,8 +101,11 @@ RSpec.describe "NetLogger XML integration" do
       status: 200,
       body: xml("<ResponseCode>429 Too Many Requests</ResponseCode>")
     )
+    expect(Honeybadger).not_to receive(:notify)
     NetList.new.update_net_list_right_now_with_wreckless_disregard_for_the_last_update!
     expect(Tables::Net.find_by(id: remote.id)).to be_present
+    NetList.new.update_net_list_right_now_with_wreckless_disregard_for_the_last_update!
+    expect(WebMock).to have_requested(:get, "#{base_url}/GetActiveNets.php").twice
   end
 
   it "closes a remote net before its page can erase cached check-ins" do
@@ -357,6 +360,7 @@ RSpec.describe "NetLogger XML integration" do
 
   it "keeps check-ins when the chat feed is rate limited" do
     net = remote_net
+    another_net = remote_net(name: "Another XML Net")
     stub_request(
       :get,
       %r{#{Regexp.escape(base_url)}/GetCheckins\.php}
@@ -382,18 +386,18 @@ RSpec.describe "NetLogger XML integration" do
         )
     )
 
-    expect(Honeybadger).to receive(:notify).with(
-      instance_of(NetloggerXML::RateLimited),
-      message: "NetLogger GetAIM.php fetch failed"
-    )
-    expect { NetInfo.new(id: net.id).update! }.to output(
-      /NetLogger GetAIM\.php net #{net.id} fetch failed: NetloggerXML::RateLimited/
-    ).to_stderr
+    expect(Honeybadger).not_to receive(:notify)
+    NetInfo.new(id: net.id).update!
 
     expect(net.checkins.pluck(:call_sign)).to eq(["K1ABC"])
     expect(net.reload.checkins_fetched_at).not_to be_nil
     expect(net.aim_fetched_at).to be_nil
     expect(net.monitors_fetched_at).not_to be_nil
+
+    get "/api/net/#{another_net.id}/details"
+    expect(last_response).to be_ok
+    expect(another_net.reload.checkins_fetched_at).not_to be_nil
+    expect(WebMock).to have_requested(:get, %r{GetAIM\.php}).once
   end
 
   it "reconciles check-ins, AIM, and monitors with independent cursors and cadence" do
@@ -489,8 +493,9 @@ RSpec.describe "NetLogger XML integration" do
     ).with(headers: { "User-Agent" => NetloggerXML::USER_AGENT })
 
     net.update_columns(
-      checkins_fetched_at: 1.minute.ago,
-      aim_fetched_at: 1.minute.ago
+      checkins_fetched_at: 21.seconds.ago,
+      aim_fetched_at: 21.seconds.ago,
+      monitors_fetched_at: 21.seconds.ago
     )
     service.update_net_right_now_with_wreckless_disregard_for_the_last_update!
     expect(checkin.reload.name).to eq("Alexander")
@@ -500,7 +505,7 @@ RSpec.describe "NetLogger XML integration" do
       :get,
       %r{#{Regexp.escape(base_url)}/GetAIM\.php}
     ).with(query: hash_including("id" => "123"))
-    expect(monitors).to have_been_requested.once
+    expect(monitors).to have_been_requested.twice
 
     service.update_net_right_now_with_wreckless_disregard_for_the_last_update!(
       force_full: true

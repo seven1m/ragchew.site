@@ -79,6 +79,8 @@ class NetList
       server.destroy! unless server.nets.exists?
     end
     Tables::Net.where.not(host: 'ragchew.site').update_all(partially_updated_at: now)
+  rescue NetloggerXML::RateLimited
+    nil
   rescue Socket::ResolutionError, Net::OpenTimeout, Net::ReadTimeout, Errno::EHOSTUNREACH, NetloggerXML::Error => error
     Honeybadger.notify(error, message: 'Unable to refresh NetLogger active nets')
   end

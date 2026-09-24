@@ -8,7 +8,7 @@ module Backend
 
     CHECKIN_INTERVAL = Tables::Net::UPDATE_INTERVAL_IN_SECONDS
     AIM_INTERVAL = Tables::Net::UPDATE_INTERVAL_IN_SECONDS
-    MONITOR_INTERVAL = 60
+    MONITOR_INTERVAL = Tables::Net::UPDATE_INTERVAL_IN_SECONDS
     FEED_ERROR_BACKOFF = 30
     EMPTY_CHECKINS_CONFIRMATION_TTL = 60 * 60
 
@@ -290,6 +290,8 @@ module Backend
       end
 
       yield
+    rescue NetloggerXML::RateLimited
+      result[field] = nil
     rescue NetloggerXML::Error,
            Socket::ResolutionError,
            Net::OpenTimeout,
