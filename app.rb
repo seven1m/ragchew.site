@@ -2379,6 +2379,9 @@ post '/api/message/:net_id' do
 rescue NetInfo::NotAuthorizedError => e
   status 401
   { error: e.message }.to_json
+rescue NetInfo::RateLimitedError => e
+  status 429
+  { error: e.message }.to_json
 rescue NetInfo::ServerError => e
   status 500
   { error: e.message }.to_json

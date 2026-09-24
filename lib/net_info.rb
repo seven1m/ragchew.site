@@ -18,6 +18,7 @@ class NetInfo
 
   class NotFoundError < StandardError; end
   class ServerError < StandardError; end
+  class RateLimitedError < StandardError; end
   class PasswordIncorrectError < StandardError; end
   class NotAuthorizedError < StandardError; end
   class CouldNotCloseError < StandardError; end
@@ -159,6 +160,7 @@ class NetInfo
 
     raise NotAuthorizedError, 'Test users cannot mutate NetLogger servers.' if user.test_user? && !@record.local_net?
 
+    message_record = nil
     with_lock do
       blocked_stations = (@record.monitors.blocked.pluck(:call_sign).map(&:upcase) + @record.blocked_stations.pluck(:call_sign).map(&:upcase)).uniq
       blocked = blocked_stations.include?(user.call_sign.upcase)
@@ -181,6 +183,9 @@ class NetInfo
   rescue Backend::Logger::NotAuthorizedError => error
     message_record&.destroy!
     raise NotAuthorizedError, error.message
+  rescue NetloggerXML::RateLimited => error
+    message_record&.destroy!
+    raise RateLimitedError, error.message
   rescue NetloggerXML::Error, Socket::ResolutionError, Net::OpenTimeout, Net::ReadTimeout
     message_record&.destroy!
     raise ServerError, 'There was an error with the server. Please try again later.'

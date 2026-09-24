@@ -314,8 +314,7 @@ module Backend
       cooldown_key = "netlogger:cooldown:#{endpoint}:#{@net_info.id}:#{user.id}"
       acquired = REDIS.set(cooldown_key, "1", nx: true, ex: cooldown)
       unless acquired
-        raise NetloggerXML::RateLimited,
-              "Please wait before repeating this action."
+        raise NetloggerXML::RateLimited, "Slow down."
       end
 
       params = {
