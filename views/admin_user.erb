@@ -205,7 +205,7 @@ function lookupQrz() {
   loading.style.display = 'inline';
   infoDiv.style.display = 'none';
 
-  fetch(`/admin/users/<%== @user_to_edit.id %>/qrz`)
+  fetch(`/api/admin/users/<%== @user_to_edit.id %>/qrz`)
     .then(response => {
       if (!response.ok) {
         return response.json().then(err => Promise.reject(err));
