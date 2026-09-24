@@ -4,10 +4,13 @@ require_relative "../user_presenter"
 
 module Backend
   class RemoteNet
+    class NotFoundError < StandardError; end
+
     CHECKIN_INTERVAL = Tables::Net::UPDATE_INTERVAL_IN_SECONDS
     AIM_INTERVAL = Tables::Net::UPDATE_INTERVAL_IN_SECONDS
     MONITOR_INTERVAL = 60
     FEED_ERROR_BACKOFF = 30
+    EMPTY_CHECKINS_CONFIRMATION_TTL = 60 * 60
 
     def initialize(net_info, user: nil, require_logger_auth: false)
       @net_info = net_info
@@ -76,11 +79,32 @@ module Backend
 
       if due?(net.checkins_fetched_at, CHECKIN_INTERVAL, force_full)
         fetch_feed("GetCheckins.php", result, :checkins) do
-          document = @client.get("GetCheckins.php", params, empty: true)
+          document =
+            begin
+              @client.get("GetCheckins.php", params, empty: true)
+            rescue NetloggerXML::NotFound
+              raise_if_missing_from_active_nets!(net)
+              raise
+            end
+          if document.at_xpath("/NetLoggerXML/ResponseCode")&.text.to_s.start_with?("404")
+            raise_if_missing_from_active_nets!(net)
+          end
           list = document.at_xpath("/NetLoggerXML/CheckinList")
           unless list || NetloggerXML.empty_result?(document)
             raise NetloggerXML::Error, "NetLogger API omitted CheckinList"
           end
+          empty_key = "netlogger:empty_checkins_since:#{net.id}"
+          if !list && net.checkins.exists?
+            first_empty_at = REDIS.get(empty_key)&.to_f
+            if first_empty_at.nil? ||
+                 net.partially_updated_at.nil? ||
+                 net.partially_updated_at.to_f <= first_empty_at
+              REDIS.set(empty_key, now.to_f.to_s, nx: true, ex: EMPTY_CHECKINS_CONFIRMATION_TTL)
+              fetched[:checkins_fetched_at] = now
+              next
+            end
+          end
+          REDIS.del(empty_key)
           observed_at =
             begin
               Time.strptime(
@@ -245,13 +269,25 @@ module Backend
 
     private
 
+    def raise_if_missing_from_active_nets!(net)
+      active = self.class.fetch_active_nets.any? do |server_name, nets|
+        server_name == net.server.name && nets.any? { |entry| entry[:name] == net.name }
+      end
+      return if active
+
+      raise NotFoundError, "Net is closed"
+    end
+
     def due?(fetched_at, interval, force)
       force || fetched_at.nil? || fetched_at < Time.now - interval
     end
 
     def fetch_feed(endpoint, result, field)
       backoff_key = "netlogger:feed_error:#{endpoint}:#{@net_info.id}"
-      return if REDIS.exists?(backoff_key)
+      if REDIS.exists?(backoff_key)
+        NetloggerXML.log("NetLogger #{endpoint} net #{@net_info.id} skipped (feed backoff)")
+        return
+      end
 
       yield
     rescue NetloggerXML::Error,
@@ -262,7 +298,8 @@ module Backend
            Errno::ECONNRESET => error
       result[field] = nil
       REDIS.set(backoff_key, "1", ex: FEED_ERROR_BACKOFF)
-      Honeybadger.notify("NetLogger #{endpoint} fetch failed (#{error.class})")
+      warn "NetLogger #{endpoint} net #{@net_info.id} fetch failed: #{error.class}: #{error.message}"
+      Honeybadger.notify(error, message: "NetLogger #{endpoint} fetch failed")
     end
 
     def participation!(endpoint, user, extra)

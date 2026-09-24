@@ -38,6 +38,12 @@ class NetloggerXML
         .match?(/query returned an empty result/i)
   end
 
+  def self.log(message)
+    return unless %w[1 true yes on].include?(ENV['LOG_FETCH'].to_s.downcase)
+
+    puts message
+  end
+
   def get(endpoint, params = {}, empty: false)
     if REDIS.exists?("netlogger:rate_limited:#{endpoint}")
       raise RateLimited, "NetLogger API rate limited the request"
@@ -45,6 +51,12 @@ class NetloggerXML
 
     uri = URI.join(BASE_URL, endpoint)
     uri.query = URI.encode_www_form(params)
+    logged_uri = URI.join(BASE_URL, endpoint)
+    logged_uri.query = URI.encode_www_form(
+      params.map do |key, value|
+        [key, %w[APIKey SessionKey].include?(key.to_s) ? '[REDACTED]' : value]
+      end
+    )
     response =
       Net::HTTP.start(
         uri.host,
@@ -53,11 +65,12 @@ class NetloggerXML
         open_timeout: 5,
         read_timeout: 10
       ) { |http| http.get(uri.request_uri, "User-Agent" => USER_AGENT) }
-    if response.code.to_i == 429
-      REDIS.set("netlogger:rate_limited:#{endpoint}", "1", ex: 60)
-      raise RateLimited, "NetLogger API rate limited the request"
-    end
     unless response.is_a?(Net::HTTPSuccess)
+      self.class.log("GET #{logged_uri} -> HTTP #{response.code}")
+      if response.code.to_i == 429
+        REDIS.set("netlogger:rate_limited:#{endpoint}", "1", ex: 60)
+        raise RateLimited, "NetLogger API rate limited the request"
+      end
       raise Error, "NetLogger API HTTP #{response.code}"
     end
 
@@ -74,6 +87,8 @@ class NetloggerXML
         document.at_xpath("/NetLoggerXML/MonitorList/ResponseCode") ||
         document.at_xpath("/NetLoggerXML/Session/ResponseCode")
     status = code&.text.to_s.to_i
+    response_code = code&.text.to_s.strip
+    self.class.log("GET #{logged_uri} -> HTTP #{response.code}, NetLogger #{response_code.empty? ? 'missing response code' : response_code}")
     case status
     when 200
       document

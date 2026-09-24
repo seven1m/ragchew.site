@@ -31,13 +31,18 @@ RSpec.describe "NetLogger XML integration" do
         record.host = "www.netlogger.org"
         record.is_public = true
       end
-    Tables::Net.create!(
+    net = Tables::Net.create!(
       server:,
       host: server.host,
       name:,
       started_at: Time.utc(2026, 9, 22, 17),
       frequency: "146.52"
     )
+    stub_request(:get, "#{base_url}/GetActiveNets.php").to_return(
+      status: 200,
+      body: active_xml(net_xml(name))
+    )
+    net
   end
 
   before do
@@ -98,6 +103,96 @@ RSpec.describe "NetLogger XML integration" do
     )
     NetList.new.update_net_list_right_now_with_wreckless_disregard_for_the_last_update!
     expect(Tables::Net.find_by(id: remote.id)).to be_present
+  end
+
+  it "closes a remote net before its page can erase cached check-ins" do
+    net = remote_net
+    net.checkins.create!(num: 1, call_sign: "K1ABC")
+    stub_request(:get, %r{#{Regexp.escape(base_url)}/GetCheckins\.php}).to_return(
+      status: 200,
+      body: xml("<Error>Query returned an empty result</Error><ResponseCode>404 Not Found</ResponseCode>")
+    )
+    stub_request(:get, "#{base_url}/GetActiveNets.php").to_return(
+      status: 200,
+      body: active_xml("")
+    )
+
+    get "/net/XML+Net"
+
+    expect(last_response).to be_ok
+    expect(last_response.body).to include("XML Net (closed)")
+    expect(Tables::Net.find_by(id: net.id)).to be_nil
+    expect(Tables::ClosedNet.find_by!(name: "XML Net").checkin_count).to eq(1)
+    expect(WebMock).to have_requested(:get, %r{GetCheckins\.php}).once
+  end
+
+  it "returns not found for a closed remote net's live details" do
+    net = remote_net
+    net.checkins.create!(num: 1, call_sign: "K1ABC")
+    stub_request(:get, %r{#{Regexp.escape(base_url)}/GetCheckins\.php}).to_return(
+      status: 200,
+      body: xml("<Error>Query returned an empty result</Error><ResponseCode>404 Not Found</ResponseCode>")
+    )
+    stub_request(:get, "#{base_url}/GetActiveNets.php").to_return(
+      status: 200,
+      body: active_xml("")
+    )
+
+    get "/api/net/#{net.id}/details"
+
+    expect(last_response.status).to eq(404)
+    expect(Tables::ClosedNet.find_by!(name: "XML Net").checkin_count).to eq(1)
+    expect(WebMock).to have_requested(:get, %r{GetCheckins\.php}).once
+  end
+
+  it "preserves check-ins on an empty result until a later catalog confirms the net is active" do
+    net = remote_net
+    checkins = stub_request(:get, %r{#{Regexp.escape(base_url)}/GetCheckins\.php}).to_return(
+      {
+        status: 200,
+        body: xml("<CheckinList><ResponseCode>200 OK</ResponseCode><Pointer>0</Pointer><Checkin><SerialNo>1</SerialNo><Callsign>K1ABC</Callsign></Checkin></CheckinList>")
+      },
+      {
+        status: 200,
+        body: xml("<Error>Query returned an empty result</Error><ResponseCode>404 Not Found</ResponseCode>")
+      }
+    )
+    service = NetInfo.new(id: net.id)
+    service.update!(include_aim: false, include_monitors: false)
+    expect(net.checkins.pluck(:call_sign)).to eq(["K1ABC"])
+    net.update_columns(checkins_fetched_at: 1.minute.ago, fully_updated_at: 1.minute.ago)
+    NetInfo.new(id: net.id).update!(include_aim: false, include_monitors: false)
+    expect(net.checkins.pluck(:call_sign)).to eq(["K1ABC"])
+
+    net.update_columns(
+      checkins_fetched_at: 1.minute.ago,
+      fully_updated_at: 1.minute.ago,
+      partially_updated_at: 1.second.from_now
+    )
+    NetInfo.new(id: net.id).update!(include_aim: false, include_monitors: false)
+    expect(net.checkins.count).to eq(0)
+    expect(checkins).to have_been_requested.times(3)
+  end
+
+  it "archives a remote net when its check-ins return 404 and the active catalog omits it" do
+    net = remote_net
+    net.checkins.create!(num: 1, call_sign: "K1ABC")
+    stub_request(:get, %r{#{Regexp.escape(base_url)}/GetCheckins\.php}).to_return(
+      status: 200,
+      body: xml("<Error>Query returned an empty result</Error><ResponseCode>404 Not Found</ResponseCode>")
+    )
+    stub_request(:get, "#{base_url}/GetActiveNets.php").to_return(
+      status: 200,
+      body: active_xml("")
+    )
+
+    expect {
+      NetInfo.new(id: net.id).update!(include_aim: false, include_monitors: false)
+    }.to raise_error(NetInfo::NotFoundError, "Net is closed")
+
+    expect(Tables::Net.find_by(id: net.id)).to be_nil
+    expect(Tables::ClosedNet.find_by!(name: "XML Net").checkin_count).to eq(1)
+    expect(WebMock).not_to have_requested(:get, %r{GetAIM\.php|GetMonitors\.php})
   end
 
   it "accepts documented top-level empty results without abandoning the net refresh" do
@@ -175,6 +270,45 @@ RSpec.describe "NetLogger XML integration" do
     expect(session).to have_been_requested.once
   end
 
+  it "logs each NetLogger request once with its response codes and no credentials" do
+    original = ENV['LOG_FETCH']
+    ENV['LOG_FETCH'] = 'true'
+    stub_request(:get, "#{base_url}/GetNewAPISessionKey.php").with(
+      query: { "APIKey" => "private-api-key" }
+    ).to_return(
+      status: 200,
+      body: xml("<Session><ResponseCode>200 OK</ResponseCode><SessionKey>private-session</SessionKey></Session>")
+    )
+
+    expect {
+      NetloggerXML.new.get("GetNewAPISessionKey.php", { "APIKey" => "private-api-key" })
+    }.to output(
+      "GET #{base_url}/GetNewAPISessionKey.php?APIKey=%5BREDACTED%5D -> HTTP 200, NetLogger 200 OK\n"
+    ).to_stdout
+
+    stub_request(:get, "#{base_url}/SubscribeToNet.php").with(
+      query: {
+        "ServerName" => "NETLOGGER",
+        "NetName" => "XML Net",
+        "Callsign" => "K1ABC",
+        "SessionKey" => "private-session"
+      }
+    ).to_return(status: 200, body: xml("<ResponseCode>200 OK</ResponseCode>"))
+
+    expect {
+      NetloggerXML.new.get("SubscribeToNet.php", {
+        "ServerName" => "NETLOGGER",
+        "NetName" => "XML Net",
+        "Callsign" => "K1ABC",
+        "SessionKey" => "private-session"
+      })
+    }.to output(
+      "GET #{base_url}/SubscribeToNet.php?ServerName=NETLOGGER&NetName=XML+Net&Callsign=K1ABC&SessionKey=%5BREDACTED%5D -> HTTP 200, NetLogger 200 OK\n"
+    ).to_stdout
+  ensure
+    ENV['LOG_FETCH'] = original
+  end
+
   it "defers chat and monitors during populate but fetches them on the next visit" do
     net = remote_net
     stub_request(
@@ -248,7 +382,13 @@ RSpec.describe "NetLogger XML integration" do
         )
     )
 
-    NetInfo.new(id: net.id).update!
+    expect(Honeybadger).to receive(:notify).with(
+      instance_of(NetloggerXML::RateLimited),
+      message: "NetLogger GetAIM.php fetch failed"
+    )
+    expect { NetInfo.new(id: net.id).update! }.to output(
+      /NetLogger GetAIM\.php net #{net.id} fetch failed: NetloggerXML::RateLimited/
+    ).to_stderr
 
     expect(net.checkins.pluck(:call_sign)).to eq(["K1ABC"])
     expect(net.reload.checkins_fetched_at).not_to be_nil

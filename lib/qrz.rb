@@ -59,7 +59,11 @@ class Qrz
     params.merge!(agent: AGENT)
     params_string = params.map { |k, v| "#{k}=#{CGI.escapeURIComponent(v)}" }.join(';')
     url = "#{BASE_URL}?#{params_string}"
-    puts "GET #{url.sub(/password=[^;]+/, 'password=***')}"
+    logged_params = params.map do |key, value|
+      safe_value = %w[password s].include?(key.to_s.downcase) ? '***' : CGI.escapeURIComponent(value)
+      "#{key}=#{safe_value}"
+    end.join(';')
+    puts "GET #{BASE_URL}?#{logged_params}"
     Net::HTTP.get(URI(url))
   rescue Net::OpenTimeout
     raise ServerError, 'server connection issue'

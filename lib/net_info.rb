@@ -273,12 +273,17 @@ class NetInfo
   def update_cache(force_full: false, include_aim: true, include_monitors: true)
     begin
       data = backend_for_update.fetch_updates(force_full:, include_aim:, include_monitors:)
+    rescue Backend::RemoteNet::NotFoundError
+      Tables::ClosedNet.from_net(@record).save!
+      @record.destroy!
+      raise NotFoundError, 'Net is closed'
     rescue NetloggerXML::Error, Socket::ResolutionError, Net::OpenTimeout, Net::ReadTimeout, Errno::EHOSTUNREACH => error
       if @record.local_net?
         Honeybadger.notify(error, message: 'Rescued network/server error fetching data')
       else
         REDIS.set(remote_error_backoff_key, '1', ex: REMOTE_ERROR_BACKOFF)
-        Honeybadger.notify("NetLogger data fetch failed (#{error.class})")
+        warn "NetLogger net #{@record.id} fetch failed: #{error.class}: #{error.message}"
+        Honeybadger.notify(error, message: 'NetLogger data fetch failed')
       end
       return
     end
@@ -514,6 +519,7 @@ class NetInfo
           changes += 1
         end
       rescue ActiveRecord::StatementInvalid => error
+        warn "NetLogger net #{@record.id} message update failed: #{error.class}: #{error.message}"
         Honeybadger.notify(error, message: 'Unable to create/update message')
       end
     end
