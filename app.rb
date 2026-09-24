@@ -111,10 +111,12 @@ if development?
 end
 
 before do
-  is_app_domain = request.host == 'ragchew.app' ||
-                  request.host == 'www.ragchew.app' ||
-                  params[:domain] == 'ragchew.app'
-  if is_app_domain
+  if request.host == 'ragchew.app' || request.host == 'www.ragchew.app'
+    redirect "https://ragchew.site#{request.fullpath}", 302
+    return
+  end
+
+  if params[:domain] == 'ragchew.app'
     redirect 'https://ragchew.site/', 302
     return
   end

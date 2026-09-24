@@ -45,12 +45,22 @@ RSpec.describe 'canonical URLs' do
     )
   end
 
-  it 'temporarily redirects ragchew.app requests to the ragchew.site root' do
+  it 'redirects ragchew.app requests with the full path and query string' do
     header 'Host', 'ragchew.app'
+    get '/net/Example%20Net?source=app&view=full'
+
+    expect(last_response.status).to eq(302)
+    expect(last_response.headers['location']).to eq(
+      'https://ragchew.site/net/Example%20Net?source=app&view=full'
+    )
+  end
+
+  it 'redirects www.ragchew.app requests with the full path and query string' do
+    header 'Host', 'www.ragchew.app'
     get '/about?source=app'
 
     expect(last_response.status).to eq(302)
-    expect(last_response.headers['location']).to eq('https://ragchew.site/')
+    expect(last_response.headers['location']).to eq('https://ragchew.site/about?source=app')
   end
 
   it 'redirects the app-domain preview parameter to the ragchew.site root' do
