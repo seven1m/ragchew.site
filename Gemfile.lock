@@ -150,7 +150,7 @@ GEM
       pusher-signature (~> 0.1.8)
     pusher-signature (0.1.8)
     racc (1.8.1)
-    rack (3.2.8)
+    rack (3.2.9)
     rack-attack (6.8.0)
       rack (>= 1.0, < 4)
     rack-protection (4.2.1)
